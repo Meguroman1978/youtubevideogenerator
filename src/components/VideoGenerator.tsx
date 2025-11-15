@@ -2,6 +2,146 @@ import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import type { VideoProject } from '../types';
 
+interface StepItemProps {
+  title: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  output?: string;
+  outputLabel?: string;
+  isFile?: boolean;
+  details?: React.ReactNode;
+}
+
+function StepItem({ title, status, output, outputLabel, isFile, details }: StepItemProps) {
+  const [showDetails, setShowDetails] = useState(false);
+  
+  const getStatusIcon = () => {
+    switch (status) {
+      case 'completed': return '✅';
+      case 'processing': return '🔄';
+      case 'failed': return '❌';
+      default: return '⏳';
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (status) {
+      case 'completed': return 'var(--success-color)';
+      case 'processing': return 'var(--primary-color)';
+      case 'failed': return '#ef4444';
+      default: return 'var(--text-secondary)';
+    }
+  };
+
+  return (
+    <div style={{
+      padding: '1rem',
+      backgroundColor: 'var(--card-bg)',
+      borderRadius: '0.5rem',
+      borderLeft: `4px solid ${getStatusColor()}`
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '1.25rem' }}>{getStatusIcon()}</span>
+          <span style={{ fontWeight: '600' }}>{title}</span>
+        </div>
+        <span style={{ fontSize: '0.875rem', color: getStatusColor() }}>
+          {status === 'pending' && '待機中'}
+          {status === 'processing' && '処理中...'}
+          {status === 'completed' && '完了'}
+          {status === 'failed' && '失敗'}
+        </span>
+      </div>
+
+      {output && status === 'completed' && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+            {outputLabel || 'アウトプット'}:
+          </div>
+          {isFile ? (
+            <div style={{
+              padding: '0.5rem',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              borderRadius: '0.25rem',
+              fontSize: '0.875rem',
+              fontFamily: 'monospace',
+              wordBreak: 'break-all'
+            }}>
+              📁 {output}
+            </div>
+          ) : output.length > 100 ? (
+            <div>
+              <div style={{
+                padding: '0.5rem',
+                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                borderRadius: '0.25rem',
+                fontSize: '0.875rem',
+                maxHeight: showDetails ? 'none' : '60px',
+                overflow: 'hidden',
+                position: 'relative'
+              }}>
+                {output}
+              </div>
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                style={{
+                  marginTop: '0.5rem',
+                  padding: '0.25rem 0.75rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--primary-color)',
+                  background: 'none',
+                  border: '1px solid var(--primary-color)',
+                  borderRadius: '0.25rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {showDetails ? '▲ 閉じる' : '▼ 全文表示'}
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              padding: '0.5rem',
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '0.25rem',
+              fontSize: '0.875rem'
+            }}>
+              {output}
+            </div>
+          )}
+        </div>
+      )}
+
+      {details && status === 'completed' && (
+        <div style={{ marginTop: '0.75rem' }}>
+          {details}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getStepStatus(project: VideoProject, stepName: string): 'pending' | 'processing' | 'completed' | 'failed' {
+  if (project.status === 'failed') {
+    if (project.errorStep === stepName) return 'failed';
+    // Check if this step was completed before failure
+    const stepOrder = ['generating_captions', 'generating_images', 'generating_videos', 'generating_audio', 'composing'];
+    const currentIndex = stepOrder.indexOf(project.errorStep || '');
+    const thisIndex = stepOrder.indexOf(stepName);
+    if (thisIndex < currentIndex) return 'completed';
+    return 'pending';
+  }
+
+  if (project.status === 'completed') return 'completed';
+  if (project.status === stepName) return 'processing';
+
+  const stepOrder = ['generating_captions', 'generating_images', 'generating_videos', 'generating_audio', 'composing'];
+  const currentIndex = stepOrder.indexOf(project.status);
+  const thisIndex = stepOrder.indexOf(stepName);
+
+  if (thisIndex < currentIndex) return 'completed';
+  if (thisIndex === currentIndex) return 'processing';
+  return 'pending';
+}
+
 export function VideoGenerator() {
   const [keyword, setKeyword] = useState('');
   const [referenceUrl, setReferenceUrl] = useState('');
@@ -358,6 +498,66 @@ export function VideoGenerator() {
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
               {currentProject.progress}% 完了
             </p>
+          </div>
+
+          {/* Detailed Step Progress */}
+          <div style={{ marginTop: '1.5rem', padding: '1.5rem', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem' }}>
+            <h4 style={{ marginBottom: '1rem' }}>📋 処理ステップ</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {/* Step 1: Script Generation */}
+              <StepItem
+                title="1. スクリプト生成"
+                status={getStepStatus(currentProject, 'generating_captions')}
+                output={currentProject.script}
+                outputLabel="生成されたスクリプト"
+              />
+
+              {/* Step 2: Narration Generation */}
+              <StepItem
+                title="2. ナレーション生成"
+                status={getStepStatus(currentProject, 'generating_audio')}
+                output={currentProject.audioUrl}
+                outputLabel="音声ファイル"
+                isFile={true}
+              />
+
+              {/* Step 3: Image Generation */}
+              <StepItem
+                title="3. 画像生成"
+                status={getStepStatus(currentProject, 'generating_images')}
+                output={currentProject.scenes.length > 0 ? `${currentProject.scenes.filter(s => s.imageUrl).length}/${currentProject.scenes.length} 枚完了` : undefined}
+                outputLabel="生成された画像"
+                details={currentProject.scenes.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    {currentProject.scenes.map((scene, idx) => scene.imageUrl && (
+                      <div key={idx} style={{ position: 'relative' }}>
+                        <img src={scene.imageUrl} alt={`Scene ${idx + 1}`} style={{ width: '100%', borderRadius: '0.25rem' }} />
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                          シーン {idx + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : undefined}
+              />
+
+              {/* Step 4: Video Generation */}
+              <StepItem
+                title="4. 動画生成（画像アニメーション）"
+                status={getStepStatus(currentProject, 'generating_videos')}
+                output={currentProject.scenes.length > 0 ? `${currentProject.scenes.filter(s => s.videoUrl).length}/${currentProject.scenes.length} 本完了` : undefined}
+                outputLabel="生成された動画クリップ"
+              />
+
+              {/* Step 5: Final Composition */}
+              <StepItem
+                title="5. 動画統合（ナレーション＋画像統合）"
+                status={getStepStatus(currentProject, 'composing')}
+                output={currentProject.finalVideoUrl}
+                outputLabel="最終動画ファイル"
+                isFile={true}
+              />
+            </div>
           </div>
 
           {currentProject.apiCosts && (

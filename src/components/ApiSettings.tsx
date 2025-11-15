@@ -1,5 +1,100 @@
 import { useState, useEffect } from 'react';
 
+function GoogleSheetsAuth() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/googlesheets/auth/status');
+      const data = await response.json();
+      setIsAuthenticated(data.isAuthenticated);
+    } catch (err) {
+      console.error('Failed to check Google Sheets auth:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuth = async () => {
+    try {
+      setError(null);
+      const response = await fetch('/api/googlesheets/auth/url');
+      if (!response.ok) {
+        throw new Error('認証URLの取得に失敗しました');
+      }
+      const { authUrl } = await response.json();
+      
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      
+      const authWindow = window.open(
+        authUrl,
+        'Google Sheets Authorization',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      const checkClosed = setInterval(() => {
+        if (authWindow?.closed) {
+          clearInterval(checkClosed);
+          checkAuth();
+        }
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ color: 'var(--text-secondary)' }}>認証状態を確認中...</div>;
+  }
+
+  return (
+    <div>
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+          {error}
+        </div>
+      )}
+      
+      {isAuthenticated ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <span style={{ color: 'var(--success-color)', fontWeight: 'bold' }}>
+            ✅ Google Sheetsに接続済み
+          </span>
+          <button
+            className="btn"
+            onClick={checkAuth}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+          >
+            🔄 再確認
+          </button>
+        </div>
+      ) : (
+        <div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.875rem' }}>
+            ❌ Google Sheetsに未接続
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={handleAuth}
+          >
+            📊 Google Sheetsを認証
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ApiKeys {
   openai: string;
   elevenlabs: string;
@@ -207,6 +302,17 @@ export function ApiSettings() {
           onChange={(e) => handleKeyChange('googleClientSecret', e.target.value)}
           placeholder="GOCSPX-xxxxx"
         />
+      </div>
+
+      <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.1rem' }}>
+        Google Sheets認証
+      </h3>
+
+      <div style={{ padding: '1rem', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+          Google Sheetsからキーワードを自動取得して動画生成を行うには、Google Sheets APIの認証が必要です。
+        </p>
+        <GoogleSheetsAuth />
       </div>
 
       <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.1rem' }}>

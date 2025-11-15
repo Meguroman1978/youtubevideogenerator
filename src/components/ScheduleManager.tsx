@@ -43,7 +43,7 @@ export function ScheduleManager() {
     setSuccess(null);
 
     if (!spreadsheetId.trim()) {
-      setError('Google Sheet IDを入力してください');
+      setError('❌ Google Sheet IDを入力してください');
       return;
     }
 
@@ -62,11 +62,14 @@ export function ScheduleManager() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'スケジュール作成に失敗しました');
+        const data = await response.json().catch(() => ({}));
+        const errorMsg = data.error || data.message || '不明なエラー';
+        const statusText = response.statusText || '';
+        throw new Error(`${errorMsg} (ステータス: ${response.status} ${statusText})`);
       }
 
-      setSuccess('✅ スケジュールを作成しました！');
+      const result = await response.json();
+      setSuccess(`✅ スケジュールを作成しました！ ID: ${result.jobId || 'N/A'}`);
       setSpreadsheetId('');
       setScheduleTime('09:00');
       setSelectedDays([]);
@@ -74,8 +77,10 @@ export function ScheduleManager() {
       setIsCreating(false);
       
       await loadSchedules();
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Create schedule error:', err);
+      setError(`❌ スケジュール作成エラー: ${err.message || 'Unknown error'}。Google Sheets APIの認証が完了していることを確認してください。`);
     }
   };
 
@@ -88,6 +93,7 @@ export function ScheduleManager() {
   };
 
   const handlePauseResume = async (jobId: string, currentStatus: string) => {
+    setError(null);
     try {
       const action = currentStatus === 'active' ? 'pause' : 'resume';
       const response = await fetch(`/api/scheduler/${jobId}/${action}`, {
@@ -95,12 +101,16 @@ export function ScheduleManager() {
       });
 
       if (!response.ok) {
-        throw new Error(`スケジュールの${action === 'pause' ? '一時停止' : '再開'}に失敗しました`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `${action === 'pause' ? '一時停止' : '再開'}に失敗しました (ステータス: ${response.status})`);
       }
 
+      setSuccess(`✅ スケジュールを${action === 'pause' ? '一時停止' : '再開'}しました`);
+      setTimeout(() => setSuccess(null), 3000);
       await loadSchedules();
     } catch (err: any) {
-      setError(err.message);
+      console.error('Pause/Resume error:', err);
+      setError(`❌ エラー: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -109,36 +119,50 @@ export function ScheduleManager() {
       return;
     }
 
+    setError(null);
     try {
       const response = await fetch(`/api/scheduler/${jobId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
-        throw new Error('スケジュールの削除に失敗しました');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `削除に失敗しました (ステータス: ${response.status})`);
       }
 
+      setSuccess('✅ スケジュールを削除しました');
+      setTimeout(() => setSuccess(null), 3000);
       await loadSchedules();
     } catch (err: any) {
-      setError(err.message);
+      console.error('Delete error:', err);
+      setError(`❌ 削除エラー: ${err.message || 'Unknown error'}。ページをリロードしてから再試行してください。`);
     }
   };
 
   const handleExecuteNow = async (jobId: string) => {
+    setError(null);
+    setSuccess(null);
+    
     try {
-      setSuccess('実行中...');
+      setSuccess('🔄 実行中...');
       const response = await fetch(`/api/scheduler/${jobId}/execute`, {
         method: 'POST',
       });
 
       if (!response.ok) {
-        throw new Error('スケジュールの実行に失敗しました');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || errorData.message || '実行に失敗しました';
+        throw new Error(errorMsg);
       }
 
-      setSuccess('✅ スケジュールを手動実行しました！');
-      setTimeout(() => setSuccess(null), 3000);
+      const result = await response.json();
+      setSuccess(`✅ スケジュールを手動実行しました！ ${result.message || ''}`);
+      setTimeout(() => setSuccess(null), 5000);
+      await loadSchedules();
     } catch (err: any) {
-      setError(err.message);
+      console.error('Execute error:', err);
+      setError(`❌ 実行エラー: ${err.message || 'Unknown error'}。詳細はブラウザのコンソールをご確認ください。`);
+      setTimeout(() => setError(null), 10000);
     }
   };
 
@@ -152,13 +176,22 @@ export function ScheduleManager() {
         </p>
 
         {error && (
-          <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+          <div className="alert alert-error" style={{ marginBottom: '1rem', padding: '1rem', whiteSpace: 'pre-wrap' }}>
             {error}
+            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              💡 トラブルシューティング:
+              <ul style={{ marginLeft: '1.5rem', marginTop: '0.25rem' }}>
+                <li>Google Sheets APIが認証されているか確認してください（API設定画面）</li>
+                <li>Google Sheet IDが正しいか確認してください</li>
+                <li>ブラウザのコンソール（F12）で詳細なエラーログを確認できます</li>
+                <li>問題が続く場合は、ページをリロードしてください</li>
+              </ul>
+            </div>
           </div>
         )}
 
         {success && (
-          <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+          <div className="alert alert-success" style={{ marginBottom: '1rem', padding: '1rem' }}>
             {success}
           </div>
         )}

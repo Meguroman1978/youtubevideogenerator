@@ -13,6 +13,7 @@ export function ApiDiagnostics() {
     { service: 'OpenAI', status: 'idle', message: '未テスト' },
     { service: 'ElevenLabs', status: 'idle', message: '未テスト' },
     { service: 'PiAPI', status: 'idle', message: '未テスト' },
+    { service: 'Google Sheets', status: 'idle', message: '未テスト' },
     { service: 'バックエンドサーバー', status: 'idle', message: '未テスト' },
   ]);
 
@@ -112,6 +113,27 @@ export function ApiDiagnostics() {
     }
   };
 
+  const testGoogleSheets = async () => {
+    updateResult('Google Sheets', 'testing', '接続テスト中...');
+    
+    try {
+      const response = await fetch('/api/googlesheets/auth/status');
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.isAuthenticated) {
+          updateResult('Google Sheets', 'success', 'Google Sheetsに接続済み', '認証が完了しています');
+        } else {
+          updateResult('Google Sheets', 'error', 'Google Sheetsに未接続', 'API設定画面で認証してください');
+        }
+      } else {
+        updateResult('Google Sheets', 'error', `失敗: ${response.status}`, 'バックエンドサーバーエラー');
+      }
+    } catch (error: any) {
+      updateResult('Google Sheets', 'error', '接続に失敗しました', error.message);
+    }
+  };
+
   const testBackend = async () => {
     updateResult('バックエンドサーバー', 'testing', '接続テスト中...');
     
@@ -141,6 +163,7 @@ export function ApiDiagnostics() {
     await testOpenAI();
     await testElevenLabs();
     await testPiAPI();
+    await testGoogleSheets();
   };
 
   const getStatusIcon = (status: DiagnosticResult['status']) => {
@@ -247,6 +270,16 @@ export function ApiDiagnostics() {
                 style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
               >
                 PiAPIをテスト
+              </button>
+            )}
+            
+            {result.service === 'Google Sheets' && (
+              <button
+                className="btn btn-primary"
+                onClick={testGoogleSheets}
+                style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+              >
+                Google Sheetsをテスト
               </button>
             )}
             
