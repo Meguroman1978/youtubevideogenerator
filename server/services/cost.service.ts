@@ -5,7 +5,7 @@ import type { ApiCost } from '../types/index.js';
 
 export class CostCalculationService {
   // OpenAI GPT-4o-mini pricing (per 1M tokens)
-  private static readonly OPENAI_INPUT_COST = 0.15; // $0.15 per 1M input tokens
+  // Currently using OUTPUT_COST as the primary metric since most tokens are output
   private static readonly OPENAI_OUTPUT_COST = 0.60; // $0.60 per 1M output tokens
   
   // Estimated tokens per request

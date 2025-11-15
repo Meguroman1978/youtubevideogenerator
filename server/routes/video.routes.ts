@@ -5,7 +5,8 @@ import { OpenAIService } from '../services/openai.service.js';
 import { PiAPIService } from '../services/piapi.service.js';
 import { ElevenLabsService } from '../services/elevenlabs.service.js';
 import { VideoService } from '../services/video.service.js';
-import type { VideoProject, VideoGenerationRequest } from '../types/index.js';
+import { CostCalculationService } from '../services/cost.service.js';
+import type { VideoProject, GenerateVideoRequest } from '../types/index.js';
 
 const router = express.Router();
 
@@ -13,15 +14,13 @@ const router = express.Router();
 const projects = new Map<string, VideoProject>();
 
 // Initialize services
-const openaiService = new OpenAIService(process.env.OPENAI_API_KEY || '');
-const piapiService = new PiAPIService(process.env.PIAPI_KEY || '');
-const elevenlabsService = new ElevenLabsService(process.env.ELEVENLABS_API_KEY || '');
 const videoService = new VideoService();
 const costService = new CostCalculationService();
 
 router.post('/generate', async (req, res) => {
   try {
-    const { keyword, format, language, duration, referenceUrl, apiKeys, apiEndpoints }: VideoGenerationRequest & { apiKeys?: any; apiEndpoints?: any } = req.body;
+    const request = req.body as GenerateVideoRequest & { apiKeys?: any; apiEndpoints?: any };
+    const { keyword, format, language, duration, referenceUrl, sceneDurations, apiKeys, apiEndpoints } = request;
 
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required' });
@@ -70,7 +69,7 @@ router.post('/generate', async (req, res) => {
       language || 'ja',
       duration || 5,
       referenceUrl,
-      req.body.sceneDurations
+      sceneDurations
     ).catch((error) => {
       console.error('Video generation error:', error);
       const proj = projects.get(projectId);
@@ -244,9 +243,9 @@ async function generateVideo(
     project.finalVideoUrl = finalVideoPath;
 
     // Calculate and store API costs
-    const sceneCount = project.scenes.length;
+    const finalSceneCount = project.scenes.length;
     const scriptLength = project.script?.length || 0;
-    project.apiCosts = costService.calculateTotalCost(sceneCount, scriptLength);
+    project.apiCosts = costService.calculateTotalCost(finalSceneCount, scriptLength);
 
     // Complete
     project.status = 'completed';
@@ -345,16 +344,16 @@ export async function processSheetsKeywords(spreadsheetId: string): Promise<void
               project.status = 'uploading';
               projects.set(projectId, project);
 
-              const result = await youtubeService.uploadVideo(
-                completedProject.finalVideoUrl,
-                completedProject.keyword,
-                `この動画は「${completedProject.keyword}」について自動生成されました。\n\n${completedProject.script || ''}`,
-                'unlisted'
-              );
+              const videoId = await youtubeService.uploadVideo({
+                videoPath: completedProject.finalVideoUrl,
+                title: completedProject.keyword,
+                description: `この動画は「${completedProject.keyword}」について自動生成されました。\n\n${completedProject.script || ''}`,
+                privacyStatus: 'unlisted'
+              });
 
-              const youtubeUrl = `https://www.youtube.com/watch?v=${result.videoId}`;
+              const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
               completedProject.youtubeUrl = youtubeUrl;
-              completedProject.youtubeVideoId = result.videoId;
+              completedProject.youtubeVideoId = videoId;
               projects.set(projectId, completedProject);
 
               // Update sheet with YouTube URL

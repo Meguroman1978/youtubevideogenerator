@@ -63,11 +63,22 @@ export function VideoGenerator() {
     setIsGenerating(true);
 
     try {
+      // Parse scene durations if custom scenes are enabled
+      let sceneDurations: number[] | undefined;
+      if (useCustomScenes && customSceneDurations.trim()) {
+        sceneDurations = customSceneDurations
+          .split(',')
+          .map(d => parseInt(d.trim()))
+          .filter(d => !isNaN(d) && d >= 2 && d <= 10);
+      }
+
       const result = await api.generateVideo({ 
         keyword: keyword.trim(),
         format,
         language,
         duration,
+        referenceUrl: referenceUrl.trim() || undefined,
+        sceneDurations,
       });
       const project = await api.getProjectStatus(result.projectId);
       setCurrentProject(project);
@@ -235,8 +246,26 @@ export function VideoGenerator() {
               type="number"
               min="1"
               max="120"
+              step="1"
               value={duration}
-              onChange={(e) => setDuration(parseInt(e.target.value) || 5)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setDuration(5);
+                } else {
+                  const num = parseInt(val);
+                  if (!isNaN(num)) {
+                    setDuration(Math.max(1, Math.min(120, num)));
+                  }
+                }
+              }}
+              onBlur={(e) => {
+                // Ensure valid value on blur
+                const val = parseInt(e.target.value);
+                if (isNaN(val) || val < 1 || val > 120) {
+                  setDuration(5);
+                }
+              }}
               disabled={isGenerating}
               style={{
                 width: '100%',
@@ -244,6 +273,8 @@ export function VideoGenerator() {
                 border: '1px solid var(--border-color)',
                 borderRadius: '0.5rem',
                 fontSize: '1rem',
+                backgroundColor: 'var(--bg-color)',
+                color: 'var(--text-color)',
               }}
             />
             <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>

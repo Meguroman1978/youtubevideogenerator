@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import fs from 'fs';
 import path from 'path';
-import { GoogleSheetsService } from './googlesheets.service.js';
 import type { ScheduleConfig } from '../types/index.js';
 
 interface ScheduledJob {
@@ -84,15 +83,21 @@ export class SchedulerService {
         }
       }
     }, {
-      scheduled: config.enabled,
       timezone: 'Asia/Tokyo',
     });
+
+    // Start or stop task based on enabled flag
+    if (config.enabled) {
+      task.start();
+    } else {
+      task.stop();
+    }
 
     const scheduledJob: ScheduledJob = {
       id: jobId,
       config,
       task,
-      status: 'active',
+      status: config.enabled ? 'active' : 'paused',
       nextRun: this.getNextRunTime(cronExpression),
     };
 
@@ -128,10 +133,9 @@ export class SchedulerService {
   // Get next run time for a cron expression
   private getNextRunTime(cronExpression: string): string {
     try {
-      const task = cron.schedule(cronExpression, () => {}, { scheduled: false });
       // Note: node-cron doesn't provide direct next run time access
       // This is a placeholder - in production, use a library like cron-parser
-      return 'Next run time calculation requires cron-parser library';
+      return `Scheduled: ${cronExpression}`;
     } catch (error) {
       return 'Unknown';
     }
