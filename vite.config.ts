@@ -6,6 +6,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Listen on all network interfaces
     port: 5173,
+    allowedHosts: [
+      '.sandbox.novita.ai',
+      'localhost',
+      '127.0.0.1',
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
