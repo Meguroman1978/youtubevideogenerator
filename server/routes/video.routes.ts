@@ -17,6 +17,7 @@ const openaiService = new OpenAIService(process.env.OPENAI_API_KEY || '');
 const piapiService = new PiAPIService(process.env.PIAPI_KEY || '');
 const elevenlabsService = new ElevenLabsService(process.env.ELEVENLABS_API_KEY || '');
 const videoService = new VideoService();
+const costService = new CostCalculationService();
 
 router.post('/generate', async (req, res) => {
   try {
@@ -68,7 +69,8 @@ router.post('/generate', async (req, res) => {
       format || '9:16',
       language || 'ja',
       duration || 5,
-      referenceUrl
+      referenceUrl,
+      req.body.sceneDurations
     ).catch((error) => {
       console.error('Video generation error:', error);
       const proj = projects.get(projectId);
@@ -113,8 +115,9 @@ async function generateVideo(
   apiEndpoints: any,
   format: '9:16' | '16:9',
   language: 'ja' | 'en',
-  duration: number,
-  referenceUrl?: string
+  totalDuration: number,
+  referenceUrl?: string,
+  sceneDurations?: number[]
 ): Promise<void> {
   const project = projects.get(projectId);
   if (!project) return;
@@ -140,12 +143,30 @@ async function generateVideo(
       }
     }
 
+    // Calculate number of scenes based on total duration
+    // Each scene can be 2-10 seconds, prefer 5 seconds per scene
+    let sceneCount: number;
+    let defaultSceneDuration: number;
+    
+    if (sceneDurations && sceneDurations.length > 0) {
+      // Use custom scene durations
+      sceneCount = sceneDurations.length;
+      defaultSceneDuration = 5; // Default for any additional scenes
+    } else {
+      // Auto-calculate: aim for 5 seconds per scene, min 2, max 24 scenes (120/5)
+      sceneCount = Math.max(2, Math.min(24, Math.ceil(totalDuration / 5)));
+      defaultSceneDuration = Math.max(2, Math.min(10, totalDuration / sceneCount));
+    }
+
+    project.totalDuration = totalDuration;
+    projects.set(projectId, project);
+
     // Step 1: Generate captions
     project.status = 'generating_captions';
     project.progress = 10;
     projects.set(projectId, project);
 
-    const captions = await openaiSvc.generateVideoCaptions(keyword, language, referenceContent);
+    const captions = await openaiSvc.generateVideoCaptions(keyword, language, referenceContent, sceneCount);
 
     // Step 2: Generate image prompts and scenes
     project.status = 'generating_images';
@@ -179,10 +200,20 @@ async function generateVideo(
       project.progress = 40 + ((i + 1) / scenes.length) * 30;
       projects.set(projectId, project);
 
+      // Determine duration for this scene
+      const sceneDuration = sceneDurations && sceneDurations[i] 
+        ? sceneDurations[i] 
+        : defaultSceneDuration;
+
+      // Ensure duration is within valid range (2-10 seconds for Kling)
+      const validDuration = Math.max(2, Math.min(10, Math.round(sceneDuration)));
+      
+      scene.duration = validDuration;
+
       const videoUrl = await piapiSvc.generateVideoFromImage(
         scene.imageUrl,
         scene.imagePrompt,
-        duration
+        validDuration
       );
       scene.videoUrl = videoUrl;
       projects.set(projectId, project);
@@ -212,11 +243,19 @@ async function generateVideo(
     await videoService.mergeVideosWithAudio(videoUrls, audioPath, finalVideoPath);
     project.finalVideoUrl = finalVideoPath;
 
+    // Calculate and store API costs
+    const sceneCount = project.scenes.length;
+    const scriptLength = project.script?.length || 0;
+    project.apiCosts = costService.calculateTotalCost(sceneCount, scriptLength);
+
     // Complete
     project.status = 'completed';
     project.progress = 100;
     project.updatedAt = new Date();
     projects.set(projectId, project);
+
+    console.log(`✅ Video generation completed. Estimated cost: $${project.apiCosts.total}`);
+    console.log(costService.getCostBreakdown(project.apiCosts));
 
   } catch (error: any) {
     console.error('Video generation failed:', error);

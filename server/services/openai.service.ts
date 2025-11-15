@@ -11,13 +11,13 @@ export class OpenAIService {
     });
   }
 
-  async generateVideoCaptions(keyword: string, language: 'ja' | 'en' = 'ja', referenceContent?: string): Promise<string[]> {
+  async generateVideoCaptions(keyword: string, language: 'ja' | 'en' = 'ja', referenceContent?: string, sceneCount: number = 5): Promise<string[]> {
     const referenceContext = referenceContent 
       ? `\n\n参考情報（提供されたURLのコンテンツ）:\n${referenceContent}\n\nこの参考情報も考慮してストーリーを作成してください。` 
       : '';
 
     const prompts = {
-      ja: `あなたは創造的なストーリーテラーAIです。「${keyword}」に関する教育的な解説動画のための、魅力的な5つのシーンキャプションを生成してください。${referenceContext}
+      ja: `あなたは創造的なストーリーテラーAIです。「${keyword}」に関する教育的な解説動画のための、魅力的な${sceneCount}つのシーンキャプションを生成してください。${referenceContext}
 
 ガイドライン:
 - 各キャプションは5〜10語程度
@@ -26,9 +26,10 @@ export class OpenAIService {
 - 最後のキャプションは満足のいく結論を提供する
 - 教育と説明に焦点を当てる
 - すべての視聴者に適切な内容にする
+- 各シーンは異なる視点や要素を扱う（同じ被写体や場所を繰り返さない）
 
-あなたの回答は、「\\n」で区切られた5つの項目のリストにしてください（例: "item1\\nitem2\\nitem3\\nitem4\\nitem5"）`,
-      en: `You are a creative storytelling AI. Generate 5 engaging video scene captions for an educational/explanatory video about "${keyword}".${referenceContent ? `\n\nReference Information (from provided URL):\n${referenceContent}\n\nPlease consider this reference information when creating the story.` : ''}
+あなたの回答は、「\\n」で区切られた${sceneCount}個の項目のリストにしてください（例: "item1\\nitem2\\nitem3..."）`,
+      en: `You are a creative storytelling AI. Generate ${sceneCount} engaging video scene captions for an educational/explanatory video about "${keyword}".${referenceContent ? `\n\nReference Information (from provided URL):\n${referenceContent}\n\nPlease consider this reference information when creating the story.` : ''}
 
 Guidelines:
 - Each caption should be 5-10 words
@@ -37,8 +38,9 @@ Guidelines:
 - Last caption should provide satisfying conclusion
 - Focus on education and explanation
 - Keep it appropriate for all audiences
+- Each scene should cover different perspectives or elements (avoid repeating same subjects or locations)
 
-Your response should be a list of 5 items separated by "\\n" (for example: "item1\\nitem2\\nitem3\\nitem4\\nitem5")`
+Your response should be a list of ${sceneCount} items separated by "\\n" (for example: "item1\\nitem2\\nitem3...")`
     };
 
     const systemMessages = {
@@ -62,15 +64,21 @@ Your response should be a list of 5 items separated by "\\n" (for example: "item
     });
 
     const content = response.choices[0]?.message?.content || '';
-    return content.split('\\n').filter(line => line.trim() !== '').slice(0, 5);
+    return content.split('\\n').filter(line => line.trim() !== '').slice(0, sceneCount);
   }
 
   async generateImagePrompts(captions: string[], keyword: string, language: 'ja' | 'en' = 'ja'): Promise<VideoScene[]> {
     const scenes: VideoScene[] = [];
+    const usedSubjects: string[] = []; // Track used subjects to ensure diversity
 
-    for (const caption of captions) {
+    for (let i = 0; i < captions.length; i++) {
+      const caption = captions[i];
+      const diversityNote = usedSubjects.length > 0 
+        ? `\n\n重要: これまでに使用した被写体を避けてください: ${usedSubjects.join(', ')}。まったく異なる視点、場所、または要素を使用してください。`
+        : '';
+
       const prompts = {
-        ja: `このキャプション「${caption}」に基づいて、「${keyword}」に関する動画のための、AI画像生成（Fluxモデル）用の詳細で視覚的な画像プロンプトを生成してください。
+        ja: `このキャプション「${caption}」に基づいて、「${keyword}」に関する動画のための、AI画像生成（Fluxモデル）用の詳細で視覚的な画像プロンプトを生成してください。${diversityNote}
 
 要件:
 - 映画的でプロフェッショナルなシーンの説明を作成
@@ -79,9 +87,10 @@ Your response should be a list of 5 items separated by "\\n" (for example: "item
 - 現実的で適切なものにする
 - 最大200文字
 - プロンプトは英語で生成してください
+- 各シーンは異なる被写体や場所を使う（例: 1枚目が犬なら、2枚目以降は犬を使わない）
 
 画像プロンプトのみを返してください。他のテキストは不要です。`,
-        en: `Generate a detailed, visual image prompt for AI image generation (Flux model) based on this caption: "${caption}" for a video about "${keyword}".
+        en: `Generate a detailed, visual image prompt for AI image generation (Flux model) based on this caption: "${caption}" for a video about "${keyword}".${diversityNote ? `\n\nIMPORTANT: Avoid these previously used subjects: ${usedSubjects.join(', ')}. Use completely different perspectives, locations, or elements.` : ''}
 
 Requirements:
 - Create a cinematic, professional scene description
@@ -89,6 +98,7 @@ Requirements:
 - Make it suitable for educational/explanatory content
 - Keep it realistic and appropriate
 - Maximum 200 characters
+- Each scene should feature different subjects or locations (e.g., if scene 1 has a dog, don't use dogs in subsequent scenes)
 
 Return only the image prompt, nothing else.`
       };
@@ -105,6 +115,12 @@ Return only the image prompt, nothing else.`
       });
 
       const imagePrompt = response.choices[0]?.message?.content?.trim() || caption;
+
+      // Extract main subject from the prompt to track diversity
+      const subjectMatch = imagePrompt.match(/\b(dog|cat|person|man|woman|child|building|car|tree|ocean|mountain|city|forest|beach|desert)\b/i);
+      if (subjectMatch) {
+        usedSubjects.push(subjectMatch[0]);
+      }
 
       scenes.push({
         title: caption,

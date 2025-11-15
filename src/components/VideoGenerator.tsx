@@ -8,6 +8,8 @@ export function VideoGenerator() {
   const [format, setFormat] = useState<'9:16' | '16:9'>('9:16');
   const [language, setLanguage] = useState<'ja' | 'en'>('ja');
   const [duration, setDuration] = useState<number>(5);
+  const [useCustomScenes, setUseCustomScenes] = useState(false);
+  const [customSceneDurations, setCustomSceneDurations] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentProject, setCurrentProject] = useState<VideoProject | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +170,21 @@ export function VideoGenerator() {
           </div>
 
           <div className="input-group">
+            <label htmlFor="referenceUrl">参照URL（オプション）</label>
+            <input
+              id="referenceUrl"
+              type="url"
+              value={referenceUrl}
+              onChange={(e) => setReferenceUrl(e.target.value)}
+              placeholder="https://example.com/article"
+              disabled={isGenerating}
+            />
+            <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+              URLを指定すると、そのページの内容も参考にして動画を生成します
+            </small>
+          </div>
+
+          <div className="input-group">
             <label htmlFor="format">動画フォーマット</label>
             <select
               id="format"
@@ -212,12 +229,12 @@ export function VideoGenerator() {
           </div>
 
           <div className="input-group">
-            <label htmlFor="duration">動画の長さ（秒）</label>
+            <label htmlFor="duration">動画の合計長さ（秒）</label>
             <input
               id="duration"
               type="number"
-              min="2"
-              max="10"
+              min="1"
+              max="120"
               value={duration}
               onChange={(e) => setDuration(parseInt(e.target.value) || 5)}
               disabled={isGenerating}
@@ -230,9 +247,46 @@ export function VideoGenerator() {
               }}
             />
             <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
-              各シーンの長さ（2〜10秒）
+              1〜120秒の範囲で指定できます。自動的にシーン数が計算されます。
             </small>
           </div>
+
+          <div className="input-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={useCustomScenes}
+                onChange={(e) => setUseCustomScenes(e.target.checked)}
+                disabled={isGenerating}
+                style={{ width: 'auto', marginRight: '0.5rem' }}
+              />
+              シーンごとの長さを個別に指定する
+            </label>
+          </div>
+
+          {useCustomScenes && (
+            <div className="input-group">
+              <label htmlFor="customSceneDurations">各シーンの長さ（秒、カンマ区切り）</label>
+              <input
+                id="customSceneDurations"
+                type="text"
+                value={customSceneDurations}
+                onChange={(e) => setCustomSceneDurations(e.target.value)}
+                placeholder="例: 5,3,7,5,4"
+                disabled={isGenerating}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                }}
+              />
+              <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+                各シーン2〜10秒の範囲で指定してください。シーン数が自動決定されます。
+              </small>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -278,6 +332,33 @@ export function VideoGenerator() {
             </p>
           </div>
 
+          {currentProject.apiCosts && (
+            <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem' }}>
+              <h4 style={{ marginBottom: '0.5rem' }}>💰 推定コスト</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>OpenAI</p>
+                  <p style={{ fontSize: '1.1rem', fontWeight: '600' }}>${currentProject.apiCosts.openai.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>PiAPI</p>
+                  <p style={{ fontSize: '1.1rem', fontWeight: '600' }}>${currentProject.apiCosts.piapi.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>ElevenLabs</p>
+                  <p style={{ fontSize: '1.1rem', fontWeight: '600' }}>${currentProject.apiCosts.elevenlabs.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>合計</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--primary-color)' }}>${currentProject.apiCosts.total.toFixed(2)}</p>
+                </div>
+              </div>
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
+                ※ これは推定値です。実際の請求額は各APIプロバイダーの料金体系によって異なる場合があります。
+              </small>
+            </div>
+          )}
+
           {currentProject.script && (
             <div style={{ marginTop: '1.5rem' }}>
               <h4>スクリプト:</h4>
@@ -297,6 +378,9 @@ export function VideoGenerator() {
                       <img src={scene.imageUrl} alt={scene.title} />
                     )}
                     <h4>{scene.title}</h4>
+                    {scene.duration && (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>⏱️ {scene.duration}秒</p>
+                    )}
                     {scene.videoUrl && (
                       <p style={{ color: 'var(--success-color)' }}>✓ 動画準備完了</p>
                     )}
