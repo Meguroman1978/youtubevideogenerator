@@ -20,7 +20,7 @@ const videoService = new VideoService();
 
 router.post('/generate', async (req, res) => {
   try {
-    const { keyword, language = 'en', style = 'educational' }: VideoGenerationRequest = req.body;
+    const { keyword }: VideoGenerationRequest = req.body;
 
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required' });
@@ -69,7 +69,7 @@ router.get('/status/:projectId', (req, res) => {
   res.json(project);
 });
 
-router.get('/projects', (req, res) => {
+router.get('/projects', (_req, res) => {
   const allProjects = Array.from(projects.values()).sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
   );

@@ -13,7 +13,7 @@ const youtubeService = new YouTubeService(
 // Load saved tokens on startup
 youtubeService.loadSavedTokens();
 
-router.get('/auth/url', (req, res) => {
+router.get('/auth/url', (_req, res) => {
   try {
     const authUrl = youtubeService.getAuthUrl();
     res.json({ authUrl });
@@ -38,7 +38,7 @@ router.get('/auth/callback', async (req, res) => {
   }
 });
 
-router.get('/auth/status', (req, res) => {
+router.get('/auth/status', (_req, res) => {
   const isAuthenticated = youtubeService.isAuthenticated();
   res.json({ isAuthenticated });
 });

@@ -64,8 +64,6 @@ export class YouTubeService {
         throw new Error(`Video file not found: ${videoPath}`);
       }
 
-      const fileSize = fs.statSync(videoPath).size;
-
       const response = await this.youtube.videos.insert({
         part: ['snippet', 'status'],
         requestBody: {
