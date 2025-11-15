@@ -14,6 +14,8 @@ export class ElevenLabsService {
 
   async generateSpeech(text: string, outputPath: string): Promise<string> {
     try {
+      console.log(`ElevenLabs: Generating speech (${text.length} characters)...`);
+      
       const response = await axios.post(
         `${this.baseUrl}/text-to-speech/${this.voiceId}`,
         {
@@ -34,6 +36,10 @@ export class ElevenLabsService {
         }
       );
 
+      if (!response.data) {
+        throw new Error('ElevenLabsから音声データが返されませんでした');
+      }
+
       // Ensure directory exists
       const dir = path.dirname(outputPath);
       if (!fs.existsSync(dir)) {
@@ -42,11 +48,30 @@ export class ElevenLabsService {
 
       // Write audio file
       fs.writeFileSync(outputPath, Buffer.from(response.data));
+      
+      const fileSize = fs.statSync(outputPath).size;
+      console.log(`ElevenLabs: Speech generated successfully (${fileSize} bytes)`);
 
       return outputPath;
-    } catch (error) {
+    } catch (error: any) {
       console.error('ElevenLabs API error:', error);
-      throw new Error('Failed to generate speech');
+      
+      if (error.response?.status === 401) {
+        throw new Error('ElevenLabs認証エラー: APIキーが無効または期限切れです');
+      }
+      if (error.response?.status === 429) {
+        throw new Error('ElevenLabsレート制限エラー: 使用量制限に達しました。しばらく待ってから再試行してください');
+      }
+      if (error.response?.status === 500) {
+        throw new Error('ElevenLabsサーバーエラー: サービスが一時的に利用できません');
+      }
+      if (error.code === 'ENOENT') {
+        throw new Error(`ファイル書き込みエラー: ${outputPath} へのアクセスができません`);
+      }
+      if (error.message) {
+        throw new Error(`ElevenLabs APIエラー: ${error.message}`);
+      }
+      throw new Error('ElevenLabs音声生成に失敗しました');
     }
   }
 

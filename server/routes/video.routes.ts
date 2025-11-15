@@ -135,9 +135,18 @@ async function generateVideo(
     let referenceContent: string | undefined;
     if (referenceUrl) {
       try {
+        project.status = 'generating_captions';
+        project.progress = 5;
+        projects.set(projectId, project);
+        
+        console.log(`📄 Extracting content from URL: ${referenceUrl}`);
         referenceContent = await urlParser.extractContent(referenceUrl);
-      } catch (error) {
-        console.error('Failed to extract reference content:', error);
+        console.log(`✅ Successfully extracted ${referenceContent.length} characters from URL`);
+      } catch (error: any) {
+        console.error('⚠️ Failed to extract reference content:', error);
+        project.error = `URL解析エラー: ${error.message}`;
+        project.errorStep = 'url_parsing';
+        projects.set(projectId, project);
         // Continue without reference content
       }
     }
@@ -165,26 +174,39 @@ async function generateVideo(
     project.progress = 10;
     projects.set(projectId, project);
 
+    console.log(`🤖 Generating captions for keyword: "${keyword}" (${sceneCount} scenes, ${language})`);
     const captions = await openaiSvc.generateVideoCaptions(keyword, language, referenceContent, sceneCount);
+    console.log(`✅ Captions generated: ${captions.length} items`);
 
     // Step 2: Generate image prompts and scenes
     project.status = 'generating_images';
     project.progress = 20;
     projects.set(projectId, project);
 
+    console.log(`🎨 Generating image prompts for ${captions.length} scenes...`);
     const scenes = await openaiSvc.generateImagePrompts(captions, keyword, language);
+    console.log(`✅ Image prompts generated: ${scenes.length} scenes`);
     project.scenes = scenes;
     projects.set(projectId, project);
 
     // Step 3: Generate images for each scene
+    console.log(`🖼️  Generating ${scenes.length} images (${format} format)...`);
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       project.progress = 20 + ((i + 1) / scenes.length) * 20;
       projects.set(projectId, project);
 
-      const imageUrl = await piapiSvc.generateImage(scene.imagePrompt, format);
-      scene.imageUrl = imageUrl;
-      projects.set(projectId, project);
+      console.log(`🖼️  [${i + 1}/${scenes.length}] Generating image: "${scene.title}"`);
+      try {
+        const imageUrl = await piapiSvc.generateImage(scene.imagePrompt, format);
+        scene.imageUrl = imageUrl;
+        console.log(`✅ [${i + 1}/${scenes.length}] Image generated successfully`);
+        projects.set(projectId, project);
+      } catch (error: any) {
+        const errorMsg = `画像生成エラー (シーン${i + 1}/${scenes.length}: "${scene.title}"): ${error.message}`;
+        console.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
     }
 
     // Step 4: Generate videos from images
@@ -192,9 +214,13 @@ async function generateVideo(
     project.progress = 40;
     projects.set(projectId, project);
 
+    console.log(`🎬 Generating ${scenes.length} video clips...`);
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      if (!scene.imageUrl) continue;
+      if (!scene.imageUrl) {
+        console.error(`⚠️ Skipping scene ${i + 1}: No image URL`);
+        continue;
+      }
 
       project.progress = 40 + ((i + 1) / scenes.length) * 30;
       projects.set(projectId, project);
@@ -209,13 +235,21 @@ async function generateVideo(
       
       scene.duration = validDuration;
 
-      const videoUrl = await piapiSvc.generateVideoFromImage(
-        scene.imageUrl,
-        scene.imagePrompt,
-        validDuration
-      );
-      scene.videoUrl = videoUrl;
-      projects.set(projectId, project);
+      console.log(`🎬 [${i + 1}/${scenes.length}] Generating ${validDuration}s video for: "${scene.title}"`);
+      try {
+        const videoUrl = await piapiSvc.generateVideoFromImage(
+          scene.imageUrl,
+          scene.imagePrompt,
+          validDuration
+        );
+        scene.videoUrl = videoUrl;
+        console.log(`✅ [${i + 1}/${scenes.length}] Video generated successfully`);
+        projects.set(projectId, project);
+      } catch (error: any) {
+        const errorMsg = `動画生成エラー (シーン${i + 1}/${scenes.length}: "${scene.title}"): ${error.message}`;
+        console.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
     }
 
     // Step 5: Generate script and audio
@@ -223,13 +257,23 @@ async function generateVideo(
     project.progress = 70;
     projects.set(projectId, project);
 
-    const script = await openaiSvc.generateScript(captions, keyword, language, referenceContent);
-    project.script = script;
+    console.log(`📝 Generating narration script...`);
+    try {
+      const script = await openaiSvc.generateScript(captions, keyword, language, referenceContent);
+      project.script = script;
+      console.log(`✅ Script generated: ${script.length} characters`);
 
-    const audioPath = path.join(process.cwd(), 'uploads', `${projectId}-audio.mp3`);
-    await elevenlabsSvc.generateSpeech(script, audioPath);
-    project.audioUrl = audioPath;
-    projects.set(projectId, project);
+      const audioPath = path.join(process.cwd(), 'uploads', `${projectId}-audio.mp3`);
+      console.log(`🎙️  Generating speech audio...`);
+      await elevenlabsSvc.generateSpeech(script, audioPath);
+      console.log(`✅ Audio generated successfully`);
+      project.audioUrl = audioPath;
+      projects.set(projectId, project);
+    } catch (error: any) {
+      const errorMsg = `音声生成エラー: ${error.message}`;
+      console.error(`❌ ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
 
     // Step 6: Compose final video
     project.status = 'composing';
@@ -237,10 +281,27 @@ async function generateVideo(
     projects.set(projectId, project);
 
     const videoUrls = scenes.map(s => s.videoUrl).filter(Boolean) as string[];
+    console.log(`🎞️  Composing final video from ${videoUrls.length} clips...`);
+    
+    if (videoUrls.length === 0) {
+      throw new Error('動画クリップが生成されていません');
+    }
+    
+    if (!project.audioUrl) {
+      throw new Error('音声ファイルが生成されていません');
+    }
+    
     const finalVideoPath = path.join(process.cwd(), 'uploads', `${projectId}-final.mp4`);
 
-    await videoService.mergeVideosWithAudio(videoUrls, audioPath, finalVideoPath);
-    project.finalVideoUrl = finalVideoPath;
+    try {
+      await videoService.mergeVideosWithAudio(videoUrls, project.audioUrl, finalVideoPath);
+      console.log(`✅ Final video composed successfully`);
+      project.finalVideoUrl = finalVideoPath;
+    } catch (error: any) {
+      const errorMsg = `動画合成エラー: ${error.message}`;
+      console.error(`❌ ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
 
     // Calculate and store API costs
     const finalSceneCount = project.scenes.length;
@@ -257,13 +318,82 @@ async function generateVideo(
     console.log(costService.getCostBreakdown(project.apiCosts));
 
   } catch (error: any) {
-    console.error('Video generation failed:', error);
+    console.error('❌❌❌ Video generation failed ❌❌❌');
+    console.error('Error details:', error);
+    
+    // Get the current step where error occurred
+    const currentStep = project.status;
+    const stepLabels: Record<string, string> = {
+      'pending': '初期化',
+      'generating_captions': 'キャプション生成',
+      'generating_images': '画像生成',
+      'generating_videos': '動画クリップ生成',
+      'generating_audio': '音声生成',
+      'composing': '動画合成',
+    };
+    
     project.status = 'failed';
-    project.error = error.message;
-    project.errorStep = project.status; // Track which step failed
+    project.error = error.message || 'Unknown error';
+    project.errorStep = currentStep;
+    project.errorDetails = [{
+      api: detectErrorSource(error.message),
+      operation: stepLabels[currentStep] || currentStep,
+      timestamp: new Date().toISOString(),
+      errorMessage: error.message,
+      errorCode: error.code || error.status || 'UNKNOWN',
+      requestDetails: {
+        keyword,
+        format,
+        language,
+        duration: totalDuration,
+        sceneCount: project.scenes.length,
+      },
+      responseDetails: error.response?.data || null,
+      aiPromptForAnalysis: generateTroubleshootingPrompt(error, currentStep, keyword),
+    }];
     project.updatedAt = new Date();
     projects.set(projectId, project);
+    
+    console.error(`\n📍 Failed at step: ${stepLabels[currentStep] || currentStep}`);
+    console.error(`📍 Error message: ${error.message}`);
+    console.error(`📍 Error source: ${detectErrorSource(error.message)}`);
   }
+}
+
+// Helper function to detect error source from error message
+function detectErrorSource(errorMessage: string): string {
+  if (!errorMessage) return 'Unknown';
+  const msg = errorMessage.toLowerCase();
+  if (msg.includes('openai') || msg.includes('gpt')) return 'OpenAI';
+  if (msg.includes('piapi') || msg.includes('flux') || msg.includes('kling')) return 'PiAPI';
+  if (msg.includes('elevenlabs') || msg.includes('speech') || msg.includes('audio')) return 'ElevenLabs';
+  if (msg.includes('ffmpeg') || msg.includes('video') || msg.includes('merge')) return 'FFmpeg';
+  if (msg.includes('url') || msg.includes('fetch') || msg.includes('parse')) return 'URLParser';
+  return 'System';
+}
+
+// Helper function to generate AI troubleshooting prompt
+function generateTroubleshootingPrompt(error: any, step: string, keyword: string): string {
+  return `エラー解析:
+
+状況:
+- 動画生成プロセスが「${step}」ステップで失敗しました
+- キーワード: "${keyword}"
+- エラーメッセージ: ${error.message}
+- エラーコード: ${error.code || error.status || 'なし'}
+
+考えられる原因:
+1. APIキーが無効または期限切れ
+2. API使用量制限に達した
+3. ネットワーク接続の問題
+4. 入力データの形式が不正
+5. サービス側の一時的な障害
+
+推奨される対処法:
+1. APIキーの設定を確認してください
+2. API診断機能で各サービスの接続を確認してください
+3. しばらく待ってから再試行してください
+4. 問題が続く場合は、各APIプロバイダーのステータスページを確認してください`;
 }
 
 // Batch process videos from Google Sheets

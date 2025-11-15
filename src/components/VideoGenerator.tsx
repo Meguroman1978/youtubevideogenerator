@@ -452,14 +452,131 @@ export function VideoGenerator() {
 
           {currentProject.error && (
             <div className="alert alert-error" style={{ marginTop: '1rem' }}>
-              <strong>エラー発生:</strong>
+              <h3 style={{ color: '#ef4444', marginBottom: '1rem', fontSize: '1.25rem' }}>
+                ❌ エラーが発生しました
+              </h3>
+              
               {currentProject.errorStep && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <strong>失敗した工程:</strong> {getStatusLabel(currentProject.errorStep)}
+                <div style={{ 
+                  padding: '1rem', 
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                  borderRadius: '0.5rem',
+                  marginBottom: '1rem',
+                  borderLeft: '4px solid #ef4444'
+                }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong style={{ fontSize: '1.1rem' }}>🔴 失敗した工程:</strong>
+                    <span style={{ fontSize: '1.1rem', marginLeft: '0.5rem', fontWeight: 'bold' }}>
+                      {getStatusLabel(currentProject.errorStep)}
+                    </span>
+                  </div>
                 </div>
               )}
-              <div style={{ marginTop: '0.5rem' }}>
-                <strong>詳細:</strong> {currentProject.error}
+              
+              <div style={{ 
+                padding: '1rem', 
+                backgroundColor: 'rgba(255, 255, 255, 0.05)', 
+                borderRadius: '0.5rem',
+                marginBottom: '1rem',
+                fontFamily: 'monospace'
+              }}>
+                <strong style={{ display: 'block', marginBottom: '0.5rem' }}>📝 エラーメッセージ:</strong>
+                <div style={{ 
+                  padding: '0.75rem', 
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)', 
+                  borderRadius: '0.25rem',
+                  wordBreak: 'break-word',
+                  color: '#fca5a5'
+                }}>
+                  {currentProject.error}
+                </div>
+              </div>
+
+              {currentProject.errorDetails && currentProject.errorDetails.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  {currentProject.errorDetails.map((detail, idx) => (
+                    <details key={idx} style={{ 
+                      marginTop: '0.5rem',
+                      padding: '1rem',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                      borderRadius: '0.5rem',
+                      cursor: 'pointer'
+                    }}>
+                      <summary style={{ 
+                        fontWeight: 'bold', 
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        marginBottom: '0.5rem'
+                      }}>
+                        🔍 詳細情報を表示
+                      </summary>
+                      
+                      <div style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <strong>🎯 エラー発生元:</strong> {detail.api}
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <strong>⚙️ 処理内容:</strong> {detail.operation}
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <strong>🕐 発生時刻:</strong> {new Date(detail.timestamp).toLocaleString('ja-JP')}
+                        </div>
+                        {detail.errorCode && detail.errorCode !== 'UNKNOWN' && (
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <strong>🔢 エラーコード:</strong> {detail.errorCode}
+                          </div>
+                        )}
+                        {detail.requestDetails && (
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <strong>📤 リクエスト情報:</strong>
+                            <pre style={{ 
+                              marginTop: '0.25rem',
+                              padding: '0.5rem',
+                              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                              borderRadius: '0.25rem',
+                              overflow: 'auto',
+                              fontSize: '0.85rem'
+                            }}>
+                              {JSON.stringify(detail.requestDetails, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                        {detail.aiPromptForAnalysis && (
+                          <div style={{ marginTop: '1rem' }}>
+                            <strong>💡 トラブルシューティング:</strong>
+                            <div style={{ 
+                              marginTop: '0.5rem',
+                              padding: '1rem',
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              borderRadius: '0.5rem',
+                              borderLeft: '4px solid #3b82f6',
+                              whiteSpace: 'pre-wrap',
+                              fontSize: '0.9rem',
+                              lineHeight: '1.6'
+                            }}>
+                              {detail.aiPromptForAnalysis}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ 
+                marginTop: '1.5rem',
+                padding: '1rem',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderRadius: '0.5rem',
+                borderLeft: '4px solid #3b82f6'
+              }}>
+                <strong style={{ display: 'block', marginBottom: '0.5rem' }}>💡 次のステップ:</strong>
+                <ol style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
+                  <li>「APIの設定」タブでAPI キーが正しく設定されているか確認してください</li>
+                  <li>「API診断」でサービスの接続状態を確認してください</li>
+                  <li>問題が解決しない場合は、しばらく待ってから再試行してください</li>
+                </ol>
               </div>
             </div>
           )}

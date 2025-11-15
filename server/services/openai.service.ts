@@ -12,12 +12,13 @@ export class OpenAIService {
   }
 
   async generateVideoCaptions(keyword: string, language: 'ja' | 'en' = 'ja', referenceContent?: string, sceneCount: number = 5): Promise<string[]> {
-    const referenceContext = referenceContent 
-      ? `\n\n参考情報（提供されたURLのコンテンツ）:\n${referenceContent}\n\nこの参考情報も考慮してストーリーを作成してください。` 
-      : '';
+    try {
+      const referenceContext = referenceContent 
+        ? `\n\n参考情報（提供されたURLのコンテンツ）:\n${referenceContent}\n\nこの参考情報も考慮してストーリーを作成してください。` 
+        : '';
 
-    const prompts = {
-      ja: `あなたは創造的なストーリーテラーAIです。「${keyword}」に関する教育的な解説動画のための、魅力的な${sceneCount}つのシーンキャプションを生成してください。${referenceContext}
+      const prompts = {
+        ja: `あなたは創造的なストーリーテラーAIです。「${keyword}」に関する教育的な解説動画のための、魅力的な${sceneCount}つのシーンキャプションを生成してください。${referenceContext}
 
 ガイドライン:
 - 各キャプションは5〜10語程度
@@ -29,7 +30,7 @@ export class OpenAIService {
 - 各シーンは異なる視点や要素を扱う（同じ被写体や場所を繰り返さない）
 
 あなたの回答は、「\\n」で区切られた${sceneCount}個の項目のリストにしてください（例: "item1\\nitem2\\nitem3..."）`,
-      en: `You are a creative storytelling AI. Generate ${sceneCount} engaging video scene captions for an educational/explanatory video about "${keyword}".${referenceContent ? `\n\nReference Information (from provided URL):\n${referenceContent}\n\nPlease consider this reference information when creating the story.` : ''}
+        en: `You are a creative storytelling AI. Generate ${sceneCount} engaging video scene captions for an educational/explanatory video about "${keyword}".${referenceContent ? `\n\nReference Information (from provided URL):\n${referenceContent}\n\nPlease consider this reference information when creating the story.` : ''}
 
 Guidelines:
 - Each caption should be 5-10 words
@@ -41,30 +42,52 @@ Guidelines:
 - Each scene should cover different perspectives or elements (avoid repeating same subjects or locations)
 
 Your response should be a list of ${sceneCount} items separated by "\\n" (for example: "item1\\nitem2\\nitem3...")`
-    };
+      };
 
-    const systemMessages = {
-      ja: 'あなたは魅力的な教育動画のキャプションを作成する有能なアシスタントです。',
-      en: 'You are a helpful assistant that creates engaging educational video captions.'
-    };
+      const systemMessages = {
+        ja: 'あなたは魅力的な教育動画のキャプションを作成する有能なアシスタントです。',
+        en: 'You are a helpful assistant that creates engaging educational video captions.'
+      };
 
-    const response = await this.client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: systemMessages[language],
-        },
-        {
-          role: 'user',
-          content: prompts[language],
-        },
-      ],
-      temperature: 0.8,
-    });
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: systemMessages[language],
+          },
+          {
+            role: 'user',
+            content: prompts[language],
+          },
+        ],
+        temperature: 0.8,
+      });
 
-    const content = response.choices[0]?.message?.content || '';
-    return content.split('\\n').filter(line => line.trim() !== '').slice(0, sceneCount);
+      const content = response.choices[0]?.message?.content || '';
+      const captions = content.split('\\n').filter(line => line.trim() !== '').slice(0, sceneCount);
+      
+      if (captions.length === 0) {
+        throw new Error('OpenAIからキャプションが生成されませんでした');
+      }
+      
+      console.log(`OpenAI: Generated ${captions.length} captions`);
+      return captions;
+    } catch (error: any) {
+      if (error.status === 401) {
+        throw new Error('OpenAI認証エラー: APIキーが無効または期限切れです');
+      }
+      if (error.status === 429) {
+        throw new Error('OpenAIレート制限エラー: 使用量制限に達しました。しばらく待ってから再試行してください');
+      }
+      if (error.status === 500) {
+        throw new Error('OpenAIサーバーエラー: サービスが一時的に利用できません');
+      }
+      if (error.message) {
+        throw new Error(`OpenAI APIエラー (キャプション生成): ${error.message}`);
+      }
+      throw new Error(`OpenAI APIエラー: ${error}`);
+    }
   }
 
   async generateImagePrompts(captions: string[], keyword: string, language: 'ja' | 'en' = 'ja'): Promise<VideoScene[]> {
@@ -103,31 +126,42 @@ Requirements:
 Return only the image prompt, nothing else.`
       };
 
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: prompts[language],
-          },
-        ],
-        temperature: 0.7,
-      });
+      try {
+        const response = await this.client.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'user',
+              content: prompts[language],
+            },
+          ],
+          temperature: 0.7,
+        });
 
-      const imagePrompt = response.choices[0]?.message?.content?.trim() || caption;
+        const imagePrompt = response.choices[0]?.message?.content?.trim() || caption;
 
-      // Extract main subject from the prompt to track diversity
-      const subjectMatch = imagePrompt.match(/\b(dog|cat|person|man|woman|child|building|car|tree|ocean|mountain|city|forest|beach|desert)\b/i);
-      if (subjectMatch) {
-        usedSubjects.push(subjectMatch[0]);
+        // Extract main subject from the prompt to track diversity
+        const subjectMatch = imagePrompt.match(/\b(dog|cat|person|man|woman|child|building|car|tree|ocean|mountain|city|forest|beach|desert)\b/i);
+        if (subjectMatch) {
+          usedSubjects.push(subjectMatch[0]);
+        }
+
+        scenes.push({
+          title: caption,
+          imagePrompt,
+        });
+      } catch (error: any) {
+        if (error.status === 401) {
+          throw new Error('OpenAI認証エラー: APIキーが無効または期限切れです');
+        }
+        if (error.status === 429) {
+          throw new Error('OpenAIレート制限エラー: 使用量制限に達しました');
+        }
+        throw new Error(`OpenAI APIエラー (画像プロンプト${i + 1}生成): ${error.message || error}`);
       }
-
-      scenes.push({
-        title: caption,
-        imagePrompt,
-      });
     }
 
+    console.log(`OpenAI: Generated ${scenes.length} image prompts`);
     return scenes;
   }
 
@@ -168,21 +202,44 @@ Provide only the script text, no additional formatting.`
       en: 'You are an expert educational video script writer.'
     };
 
-    const response = await this.client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: systemMessages[language],
-        },
-        {
-          role: 'user',
-          content: prompts[language],
-        },
-      ],
-      temperature: 0.7,
-    });
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: systemMessages[language],
+          },
+          {
+            role: 'user',
+            content: prompts[language],
+          },
+        ],
+        temperature: 0.7,
+      });
 
-    return response.choices[0]?.message?.content?.trim() || '';
+      const script = response.choices[0]?.message?.content?.trim() || '';
+      
+      if (!script) {
+        throw new Error('OpenAIからスクリプトが生成されませんでした');
+      }
+      
+      console.log(`OpenAI: Generated script (${script.length} characters)`);
+      return script;
+    } catch (error: any) {
+      if (error.status === 401) {
+        throw new Error('OpenAI認証エラー: APIキーが無効または期限切れです');
+      }
+      if (error.status === 429) {
+        throw new Error('OpenAIレート制限エラー: 使用量制限に達しました');
+      }
+      if (error.status === 500) {
+        throw new Error('OpenAIサーバーエラー: サービスが一時的に利用できません');
+      }
+      if (error.message) {
+        throw new Error(`OpenAI APIエラー (スクリプト生成): ${error.message}`);
+      }
+      throw new Error(`OpenAI APIエラー: ${error}`);
+    }
   }
 }
