@@ -4,11 +4,12 @@ import path from 'path';
 
 export class ElevenLabsService {
   private apiKey: string;
-  private baseUrl = 'https://api.elevenlabs.io/v1';
+  private baseUrl: string;
   private voiceId = 'onwK4e9ZLuTAKqWW03F9'; // Default voice ID
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, baseUrl?: string) {
     this.apiKey = apiKey;
+    this.baseUrl = baseUrl || 'https://api.elevenlabs.io/v1';
   }
 
   async generateSpeech(text: string, outputPath: string): Promise<string> {

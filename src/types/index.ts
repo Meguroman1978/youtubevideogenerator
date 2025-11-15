@@ -15,6 +15,7 @@ export interface VideoProject {
   finalVideoUrl?: string;
   youtubeVideoId?: string;
   error?: string;
+  errorStep?: string;
   progress: number;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +27,13 @@ export interface YouTubeAuthStatus {
 
 export interface GenerateVideoRequest {
   keyword: string;
-  language?: string;
-  style?: string;
+  format?: '9:16' | '16:9';
+  language?: 'ja' | 'en';
+  duration?: number;
+}
+
+export interface ApiEndpoints {
+  openai: string;
+  elevenlabs: string;
+  piapi: string;
 }

@@ -12,10 +12,10 @@ function App() {
   return (
     <div className="app">
       <div className="header">
-        <h1>🎬 AI Video Generator</h1>
+        <h1>🎬 AI動画ジェネレーター</h1>
         <p>
-          Enter a keyword and let AI create an educational video with animations and voiceover,
-          then automatically upload it to YouTube
+          キーワードを入力するだけで、AIがアニメーションとナレーション付きの教育動画を作成し、
+          YouTubeに自動アップロードします
         </p>
       </div>
       
@@ -41,7 +41,7 @@ function App() {
               transition: 'all 0.2s',
             }}
           >
-            🔑 API Settings
+            🔑 API設定
           </button>
           <button
             onClick={() => setActiveTab('diagnostics')}
@@ -57,7 +57,7 @@ function App() {
               transition: 'all 0.2s',
             }}
           >
-            🔍 API Diagnostics
+            🔍 API診断
           </button>
           <button
             onClick={() => setActiveTab('generate')}
@@ -73,7 +73,7 @@ function App() {
               transition: 'all 0.2s',
             }}
           >
-            🎬 Generate Video
+            🎬 動画生成
           </button>
         </div>
 
@@ -84,7 +84,7 @@ function App() {
       </div>
 
       <footer style={{ textAlign: 'center', marginTop: '3rem', color: 'var(--text-secondary)' }}>
-        <p>Powered by OpenAI, ElevenLabs, PiAPI (Flux + Kling), and YouTube API</p>
+        <p>OpenAI、ElevenLabs、PiAPI（Flux + Kling）、YouTube APIを使用</p>
       </footer>
     </div>
   );

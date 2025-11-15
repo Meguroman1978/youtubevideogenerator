@@ -20,7 +20,7 @@ const videoService = new VideoService();
 
 router.post('/generate', async (req, res) => {
   try {
-    const { keyword, apiKeys }: VideoGenerationRequest & { apiKeys?: any } = req.body;
+    const { keyword, format, language, duration, apiKeys, apiEndpoints }: VideoGenerationRequest & { apiKeys?: any; apiEndpoints?: any } = req.body;
 
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required' });
@@ -56,8 +56,18 @@ router.post('/generate', async (req, res) => {
 
     projects.set(projectId, project);
 
-    // Start async generation with provided API keys
-    generateVideo(projectId, keyword, openaiKey, piapiKey, elevenlabsKey).catch((error) => {
+    // Start async generation with provided parameters
+    generateVideo(
+      projectId, 
+      keyword, 
+      openaiKey, 
+      piapiKey, 
+      elevenlabsKey,
+      apiEndpoints || {},
+      format || '9:16',
+      language || 'ja',
+      duration || 5
+    ).catch((error) => {
       console.error('Video generation error:', error);
       const proj = projects.get(projectId);
       if (proj) {
@@ -92,14 +102,24 @@ router.get('/projects', (_req, res) => {
   res.json(allProjects);
 });
 
-async function generateVideo(projectId: string, keyword: string, openaiKey: string, piapiKey: string, elevenlabsKey: string): Promise<void> {
+async function generateVideo(
+  projectId: string, 
+  keyword: string, 
+  openaiKey: string, 
+  piapiKey: string, 
+  elevenlabsKey: string,
+  apiEndpoints: any,
+  format: '9:16' | '16:9',
+  language: 'ja' | 'en',
+  duration: number
+): Promise<void> {
   const project = projects.get(projectId);
   if (!project) return;
 
-  // Create service instances with provided API keys
-  const openaiSvc = new OpenAIService(openaiKey);
-  const piapiSvc = new PiAPIService(piapiKey);
-  const elevenlabsSvc = new ElevenLabsService(elevenlabsKey);
+  // Create service instances with provided API keys and endpoints
+  const openaiSvc = new OpenAIService(openaiKey, apiEndpoints?.openai);
+  const piapiSvc = new PiAPIService(piapiKey, apiEndpoints?.piapi);
+  const elevenlabsSvc = new ElevenLabsService(elevenlabsKey, apiEndpoints?.elevenlabs);
 
   try {
     // Step 1: Generate captions
@@ -107,14 +127,14 @@ async function generateVideo(projectId: string, keyword: string, openaiKey: stri
     project.progress = 10;
     projects.set(projectId, project);
 
-    const captions = await openaiSvc.generateVideoCaptions(keyword);
+    const captions = await openaiSvc.generateVideoCaptions(keyword, language);
 
     // Step 2: Generate image prompts and scenes
     project.status = 'generating_images';
     project.progress = 20;
     projects.set(projectId, project);
 
-    const scenes = await openaiSvc.generateImagePrompts(captions, keyword);
+    const scenes = await openaiSvc.generateImagePrompts(captions, keyword, language);
     project.scenes = scenes;
     projects.set(projectId, project);
 
@@ -124,7 +144,7 @@ async function generateVideo(projectId: string, keyword: string, openaiKey: stri
       project.progress = 20 + ((i + 1) / scenes.length) * 20;
       projects.set(projectId, project);
 
-      const imageUrl = await piapiService.generateImage(scene.imagePrompt);
+      const imageUrl = await piapiSvc.generateImage(scene.imagePrompt, format);
       scene.imageUrl = imageUrl;
       projects.set(projectId, project);
     }
@@ -143,7 +163,8 @@ async function generateVideo(projectId: string, keyword: string, openaiKey: stri
 
       const videoUrl = await piapiSvc.generateVideoFromImage(
         scene.imageUrl,
-        scene.imagePrompt
+        scene.imagePrompt,
+        duration
       );
       scene.videoUrl = videoUrl;
       projects.set(projectId, project);
@@ -154,11 +175,11 @@ async function generateVideo(projectId: string, keyword: string, openaiKey: stri
     project.progress = 70;
     projects.set(projectId, project);
 
-    const script = await openaiService.generateScript(captions, keyword);
+    const script = await openaiSvc.generateScript(captions, keyword, language);
     project.script = script;
 
     const audioPath = path.join(process.cwd(), 'uploads', `${projectId}-audio.mp3`);
-    await elevenlabsService.generateSpeech(script, audioPath);
+    await elevenlabsSvc.generateSpeech(script, audioPath);
     project.audioUrl = audioPath;
     projects.set(projectId, project);
 
@@ -183,6 +204,7 @@ async function generateVideo(projectId: string, keyword: string, openaiKey: stri
     console.error('Video generation failed:', error);
     project.status = 'failed';
     project.error = error.message;
+    project.errorStep = project.status; // Track which step failed
     project.updatedAt = new Date();
     projects.set(projectId, project);
   }

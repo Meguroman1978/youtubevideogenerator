@@ -10,10 +10,10 @@ interface DiagnosticResult {
 
 export function ApiDiagnostics() {
   const [results, setResults] = useState<DiagnosticResult[]>([
-    { service: 'OpenAI', status: 'idle', message: 'Not tested' },
-    { service: 'ElevenLabs', status: 'idle', message: 'Not tested' },
-    { service: 'PiAPI', status: 'idle', message: 'Not tested' },
-    { service: 'Backend Server', status: 'idle', message: 'Not tested' },
+    { service: 'OpenAI', status: 'idle', message: '未テスト' },
+    { service: 'ElevenLabs', status: 'idle', message: '未テスト' },
+    { service: 'PiAPI', status: 'idle', message: '未テスト' },
+    { service: 'バックエンドサーバー', status: 'idle', message: '未テスト' },
   ]);
 
   const updateResult = (service: string, status: DiagnosticResult['status'], message: string, details?: string) => {
@@ -23,11 +23,11 @@ export function ApiDiagnostics() {
   };
 
   const testOpenAI = async () => {
-    updateResult('OpenAI', 'testing', 'Testing connection...');
+    updateResult('OpenAI', 'testing', '接続テスト中...');
     
     const apiKeys = getStoredApiKeys();
     if (!apiKeys?.openai) {
-      updateResult('OpenAI', 'error', 'API key not configured', 'Please set your OpenAI API key in settings');
+      updateResult('OpenAI', 'error', 'APIキーが設定されていません', '設定画面でOpenAI APIキーを設定してください');
       return;
     }
 
@@ -40,22 +40,22 @@ export function ApiDiagnostics() {
 
       if (response.ok) {
         const data = await response.json();
-        updateResult('OpenAI', 'success', `Connected! Found ${data.data?.length || 0} models`, 'API key is valid');
+        updateResult('OpenAI', 'success', `接続成功！ ${data.data?.length || 0}個のモデルが見つかりました`, 'APIキーは有効です');
       } else {
         const error = await response.text();
-        updateResult('OpenAI', 'error', `Failed: ${response.status}`, error);
+        updateResult('OpenAI', 'error', `失敗: ${response.status}`, error);
       }
     } catch (error: any) {
-      updateResult('OpenAI', 'error', 'Connection failed', error.message);
+      updateResult('OpenAI', 'error', '接続に失敗しました', error.message);
     }
   };
 
   const testElevenLabs = async () => {
-    updateResult('ElevenLabs', 'testing', 'Testing connection...');
+    updateResult('ElevenLabs', 'testing', '接続テスト中...');
     
     const apiKeys = getStoredApiKeys();
     if (!apiKeys?.elevenlabs) {
-      updateResult('ElevenLabs', 'error', 'API key not configured', 'Please set your ElevenLabs API key in settings');
+      updateResult('ElevenLabs', 'error', 'APIキーが設定されていません', '設定画面でElevenLabs APIキーを設定してください');
       return;
     }
 
@@ -68,22 +68,22 @@ export function ApiDiagnostics() {
 
       if (response.ok) {
         const data = await response.json();
-        updateResult('ElevenLabs', 'success', `Connected! Found ${data.voices?.length || 0} voices`, 'API key is valid');
+        updateResult('ElevenLabs', 'success', `接続成功！ ${data.voices?.length || 0}個の音声が見つかりました`, 'APIキーは有効です');
       } else {
         const error = await response.text();
-        updateResult('ElevenLabs', 'error', `Failed: ${response.status}`, error);
+        updateResult('ElevenLabs', 'error', `失敗: ${response.status}`, error);
       }
     } catch (error: any) {
-      updateResult('ElevenLabs', 'error', 'Connection failed', error.message);
+      updateResult('ElevenLabs', 'error', '接続に失敗しました', error.message);
     }
   };
 
   const testPiAPI = async () => {
-    updateResult('PiAPI', 'testing', 'Testing connection...');
+    updateResult('PiAPI', 'testing', '接続テスト中...');
     
     const apiKeys = getStoredApiKeys();
     if (!apiKeys?.piapi) {
-      updateResult('PiAPI', 'error', 'API key not configured', 'Please set your PiAPI key in settings');
+      updateResult('PiAPI', 'error', 'APIキーが設定されていません', '設定画面でPiAPI キーを設定してください');
       return;
     }
 
@@ -103,17 +103,17 @@ export function ApiDiagnostics() {
 
       // Even if the request fails due to invalid parameters, we can check if the API key is accepted
       if (response.status === 401) {
-        updateResult('PiAPI', 'error', 'Invalid API key', 'Please check your PiAPI key');
+        updateResult('PiAPI', 'error', '無効なAPIキー', 'PiAPI キーを確認してください');
       } else {
-        updateResult('PiAPI', 'success', 'API key is valid', 'Connection successful');
+        updateResult('PiAPI', 'success', 'APIキーは有効です', '接続成功');
       }
     } catch (error: any) {
-      updateResult('PiAPI', 'error', 'Connection failed', error.message);
+      updateResult('PiAPI', 'error', '接続に失敗しました', error.message);
     }
   };
 
   const testBackend = async () => {
-    updateResult('Backend Server', 'testing', 'Testing connection...');
+    updateResult('バックエンドサーバー', 'testing', '接続テスト中...');
     
     try {
       const response = await fetch('/api/health');
@@ -124,15 +124,15 @@ export function ApiDiagnostics() {
         const allConfigured = Object.values(envCheck).every(v => v === true);
         
         if (allConfigured) {
-          updateResult('Backend Server', 'success', 'All API keys configured on backend', JSON.stringify(envCheck, null, 2));
+          updateResult('バックエンドサーバー', 'success', 'すべてのAPIキーがバックエンドで設定されています', JSON.stringify(envCheck, null, 2));
         } else {
-          updateResult('Backend Server', 'error', 'Some API keys missing on backend', JSON.stringify(envCheck, null, 2));
+          updateResult('バックエンドサーバー', 'error', '一部のAPIキーがバックエンドで不足しています', JSON.stringify(envCheck, null, 2));
         }
       } else {
-        updateResult('Backend Server', 'error', `Failed: ${response.status}`, 'Backend server error');
+        updateResult('バックエンドサーバー', 'error', `失敗: ${response.status}`, 'バックエンドサーバーエラー');
       }
     } catch (error: any) {
-      updateResult('Backend Server', 'error', 'Connection failed', error.message);
+      updateResult('バックエンドサーバー', 'error', '接続に失敗しました', error.message);
     }
   };
 
@@ -163,10 +163,10 @@ export function ApiDiagnostics() {
 
   return (
     <div className="card">
-      <h2 style={{ marginBottom: '1rem' }}>🔍 API Diagnostics</h2>
+      <h2 style={{ marginBottom: '1rem' }}>🔍 API診断</h2>
       
       <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-        Test your API connections to ensure everything is configured correctly.
+        API接続をテストして、すべてが正しく設定されていることを確認します。
       </p>
 
       <button
@@ -174,7 +174,7 @@ export function ApiDiagnostics() {
         onClick={runAllTests}
         style={{ marginBottom: '1.5rem' }}
       >
-        🧪 Run All Tests
+        🧪 すべてのテストを実行
       </button>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -193,7 +193,7 @@ export function ApiDiagnostics() {
                 {getStatusIcon(result.status)} {result.service}
               </h4>
               <span className={`status-badge ${getStatusClass(result.status)}`}>
-                {result.status}
+                {result.status === 'idle' ? '待機中' : result.status === 'testing' ? 'テスト中' : result.status === 'success' ? '成功' : 'エラー'}
               </span>
             </div>
             
@@ -204,7 +204,7 @@ export function ApiDiagnostics() {
             {result.details && (
               <details style={{ marginTop: '0.5rem' }}>
                 <summary style={{ cursor: 'pointer', color: 'var(--primary-color)' }}>
-                  Show details
+                  詳細を表示
                 </summary>
                 <pre style={{
                   marginTop: '0.5rem',
@@ -226,7 +226,7 @@ export function ApiDiagnostics() {
                 onClick={testOpenAI}
                 style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
               >
-                Test OpenAI
+                OpenAIをテスト
               </button>
             )}
             
@@ -236,7 +236,7 @@ export function ApiDiagnostics() {
                 onClick={testElevenLabs}
                 style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
               >
-                Test ElevenLabs
+                ElevenLabsをテスト
               </button>
             )}
             
@@ -246,17 +246,17 @@ export function ApiDiagnostics() {
                 onClick={testPiAPI}
                 style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
               >
-                Test PiAPI
+                PiAPIをテスト
               </button>
             )}
             
-            {result.service === 'Backend Server' && (
+            {result.service === 'バックエンドサーバー' && (
               <button
                 className="btn btn-primary"
                 onClick={testBackend}
                 style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
               >
-                Test Backend
+                バックエンドをテスト
               </button>
             )}
           </div>
@@ -264,13 +264,13 @@ export function ApiDiagnostics() {
       </div>
 
       <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem' }}>
-        <h4 style={{ marginBottom: '0.5rem' }}>💡 Troubleshooting Tips</h4>
+        <h4 style={{ marginBottom: '0.5rem' }}>💡 トラブルシューティングのヒント</h4>
         <ul style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginLeft: '1.5rem' }}>
-          <li>If OpenAI test fails, verify your API key at platform.openai.com</li>
-          <li>Ensure you have sufficient credits in each service</li>
-          <li>Backend server tests check server-side configuration (.env file)</li>
-          <li>Frontend tests check browser-side configuration (localStorage)</li>
-          <li>For video generation, all tests must pass</li>
+          <li>OpenAIテストが失敗した場合は、platform.openai.comでAPIキーを確認してください</li>
+          <li>各サービスで十分なクレジットがあることを確認してください</li>
+          <li>バックエンドサーバーのテストは、サーバー側の設定（.envファイル）を確認します</li>
+          <li>フロントエンドのテストは、ブラウザ側の設定（localStorage）を確認します</li>
+          <li>動画生成には、すべてのテストに合格する必要があります</li>
         </ul>
       </div>
     </div>

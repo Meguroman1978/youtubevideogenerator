@@ -4,6 +4,9 @@ import type { VideoProject } from '../types';
 
 export function VideoGenerator() {
   const [keyword, setKeyword] = useState('');
+  const [format, setFormat] = useState<'9:16' | '16:9'>('9:16');
+  const [language, setLanguage] = useState<'ja' | 'en'>('ja');
+  const [duration, setDuration] = useState<number>(5);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentProject, setCurrentProject] = useState<VideoProject | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +52,7 @@ export function VideoGenerator() {
     e.preventDefault();
     
     if (!keyword.trim()) {
-      setError('Please enter a keyword');
+      setError('キーワードを入力してください');
       return;
     }
 
@@ -57,7 +60,12 @@ export function VideoGenerator() {
     setIsGenerating(true);
 
     try {
-      const result = await api.generateVideo({ keyword: keyword.trim() });
+      const result = await api.generateVideo({ 
+        keyword: keyword.trim(),
+        format,
+        language,
+        duration,
+      });
       const project = await api.getProjectStatus(result.projectId);
       setCurrentProject(project);
     } catch (err: any) {
@@ -98,28 +106,28 @@ export function VideoGenerator() {
       setError(null);
       const result = await api.uploadToYouTube(
         currentProject.finalVideoUrl,
-        `AI Generated Video: ${currentProject.keyword}`,
-        `This video was automatically generated about: ${currentProject.keyword}\n\n${currentProject.script || ''}`
+        currentProject.keyword,
+        `この動画は「${currentProject.keyword}」について自動生成されました。\n\n${currentProject.script || ''}`
       );
 
-      alert(`Video uploaded successfully! View at: ${result.url}`);
+      alert(`動画のアップロードが完了しました！\n視聴URL: ${result.url}`);
       window.open(result.url, '_blank');
     } catch (err: any) {
-      setError(`YouTube upload failed: ${err.message}`);
+      setError(`YouTubeアップロード失敗: ${err.message}`);
     }
   };
 
   const getStatusLabel = (status: string): string => {
     const labels: Record<string, string> = {
-      pending: 'Pending',
-      generating_captions: 'Generating Captions',
-      generating_images: 'Generating Images',
-      generating_videos: 'Generating Videos',
-      generating_audio: 'Generating Audio',
-      composing: 'Composing Final Video',
-      uploading: 'Uploading to YouTube',
-      completed: 'Completed',
-      failed: 'Failed',
+      pending: '待機中',
+      generating_captions: 'キャプション生成中',
+      generating_images: '画像生成中',
+      generating_videos: '動画生成中',
+      generating_audio: '音声生成中',
+      composing: '最終動画作成中',
+      uploading: 'YouTubeにアップロード中',
+      completed: '完了',
+      failed: '失敗',
     };
     return labels[status] || status;
   };
@@ -134,7 +142,7 @@ export function VideoGenerator() {
   return (
     <div className="video-generator">
       <div className="card">
-        <h2 style={{ marginBottom: '1.5rem' }}>Generate AI Video</h2>
+        <h2 style={{ marginBottom: '1.5rem' }}>AI動画を生成</h2>
         
         {error && (
           <div className="alert alert-error">
@@ -144,15 +152,85 @@ export function VideoGenerator() {
 
         <form onSubmit={handleGenerate}>
           <div className="input-group">
-            <label htmlFor="keyword">Enter a keyword or topic</label>
+            <label htmlFor="keyword">キーワードまたはトピックを入力</label>
             <input
               id="keyword"
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="e.g., Artificial Intelligence, Climate Change, Machine Learning..."
+              placeholder="例: 人工知能、気候変動、機械学習..."
               disabled={isGenerating}
             />
+            <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+              このキーワードが動画のタイトルとして使用されます
+            </small>
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="format">動画フォーマット</label>
+            <select
+              id="format"
+              value={format}
+              onChange={(e) => setFormat(e.target.value as '9:16' | '16:9')}
+              disabled={isGenerating}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid var(--border-color)',
+                borderRadius: '0.5rem',
+                fontSize: '1rem',
+                backgroundColor: 'var(--bg-color)',
+                color: 'var(--text-color)',
+              }}
+            >
+              <option value="9:16">9:16 (縦型 - スマートフォン向け)</option>
+              <option value="16:9">16:9 (横型 - PC・TV向け)</option>
+            </select>
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="language">言語</label>
+            <select
+              id="language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}
+              disabled={isGenerating}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid var(--border-color)',
+                borderRadius: '0.5rem',
+                fontSize: '1rem',
+                backgroundColor: 'var(--bg-color)',
+                color: 'var(--text-color)',
+              }}
+            >
+              <option value="ja">日本語</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="duration">動画の長さ（秒）</label>
+            <input
+              id="duration"
+              type="number"
+              min="2"
+              max="10"
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value) || 5)}
+              disabled={isGenerating}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid var(--border-color)',
+                borderRadius: '0.5rem',
+                fontSize: '1rem',
+              }}
+            />
+            <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+              各シーンの長さ（2〜10秒）
+            </small>
           </div>
 
           <button
@@ -163,10 +241,10 @@ export function VideoGenerator() {
             {isGenerating ? (
               <>
                 <span className="spinner"></span>
-                Generating...
+                生成中...
               </>
             ) : (
-              '🎬 Generate Video'
+              '🎬 動画を生成'
             )}
           </button>
         </form>
@@ -175,7 +253,7 @@ export function VideoGenerator() {
       {currentProject && (
         <div className="card">
           <h3 style={{ marginBottom: '1rem' }}>
-            Project: {currentProject.keyword}
+            プロジェクト: {currentProject.keyword}
           </h3>
           
           <div style={{ marginBottom: '1rem' }}>
@@ -192,13 +270,13 @@ export function VideoGenerator() {
               ></div>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              {currentProject.progress}% Complete
+              {currentProject.progress}% 完了
             </p>
           </div>
 
           {currentProject.script && (
             <div style={{ marginTop: '1.5rem' }}>
-              <h4>Script:</h4>
+              <h4>スクリプト:</h4>
               <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
                 {currentProject.script}
               </p>
@@ -207,7 +285,7 @@ export function VideoGenerator() {
 
           {currentProject.scenes.length > 0 && (
             <div style={{ marginTop: '1.5rem' }}>
-              <h4>Scenes:</h4>
+              <h4>シーン:</h4>
               <div className="scenes-grid">
                 {currentProject.scenes.map((scene, index) => (
                   <div key={index} className="scene-card">
@@ -216,7 +294,7 @@ export function VideoGenerator() {
                     )}
                     <h4>{scene.title}</h4>
                     {scene.videoUrl && (
-                      <p style={{ color: 'var(--success-color)' }}>✓ Video Ready</p>
+                      <p style={{ color: 'var(--success-color)' }}>✓ 動画準備完了</p>
                     )}
                   </div>
                 ))}
@@ -226,22 +304,22 @@ export function VideoGenerator() {
 
           {currentProject.status === 'completed' && currentProject.finalVideoUrl && (
             <div style={{ marginTop: '2rem' }}>
-              <h4>Final Video:</h4>
+              <h4>最終動画:</h4>
               <div className="video-player">
                 <video controls src={`/${currentProject.finalVideoUrl}`}>
-                  Your browser does not support the video tag.
+                  お使いのブラウザは動画タグをサポートしていません。
                 </video>
               </div>
 
               <div style={{ marginTop: '1rem' }}>
                 {!youtubeAuth ? (
                   <div className="youtube-auth">
-                    <p>Authorize YouTube to upload your video:</p>
+                    <p>動画をアップロードするにはYouTubeを認証してください:</p>
                     <button
                       className="btn btn-primary"
                       onClick={handleYouTubeAuth}
                     >
-                      📺 Connect YouTube
+                      📺 YouTubeに接続
                     </button>
                   </div>
                 ) : (
@@ -249,7 +327,7 @@ export function VideoGenerator() {
                     className="btn btn-success"
                     onClick={handleUploadToYouTube}
                   >
-                    📤 Upload to YouTube
+                    📤 YouTubeにアップロード
                   </button>
                 )}
               </div>
@@ -258,7 +336,15 @@ export function VideoGenerator() {
 
           {currentProject.error && (
             <div className="alert alert-error" style={{ marginTop: '1rem' }}>
-              Error: {currentProject.error}
+              <strong>エラー発生:</strong>
+              {currentProject.errorStep && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <strong>失敗した工程:</strong> {getStatusLabel(currentProject.errorStep)}
+                </div>
+              )}
+              <div style={{ marginTop: '0.5rem' }}>
+                <strong>詳細:</strong> {currentProject.error}
+              </div>
             </div>
           )}
         </div>

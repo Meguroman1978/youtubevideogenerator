@@ -7,15 +7,22 @@ function getApiKeys() {
   return savedKeys ? JSON.parse(savedKeys) : null;
 }
 
+function getApiEndpoints() {
+  const savedEndpoints = localStorage.getItem('apiEndpoints');
+  return savedEndpoints ? JSON.parse(savedEndpoints) : null;
+}
+
 export const api = {
   async generateVideo(request: GenerateVideoRequest): Promise<{ projectId: string; status: string }> {
     const apiKeys = getApiKeys();
+    const apiEndpoints = getApiEndpoints();
     const response = await fetch(`${API_BASE}/video/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...request,
         apiKeys,
+        apiEndpoints,
       }),
     });
     
