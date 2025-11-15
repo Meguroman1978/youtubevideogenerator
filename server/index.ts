@@ -2,15 +2,25 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import videoRoutes from './routes/video.routes.js';
+import videoRoutes, { processSheetsKeywords } from './routes/video.routes.js';
 import youtubeRoutes from './routes/youtube.routes.js';
 import googlesheetsRoutes from './routes/googlesheets.routes.js';
+import schedulerRoutes, { initializeScheduler } from './routes/scheduler.routes.js';
+import { SchedulerService } from './services/scheduler.service.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize scheduler service
+const schedulerService = new SchedulerService();
+schedulerService.setJobExecuteCallback(async (spreadsheetId: string) => {
+  console.log(`📅 Scheduled job triggered for sheet: ${spreadsheetId}`);
+  await processSheetsKeywords(spreadsheetId);
+});
+initializeScheduler(schedulerService);
 
 // Middleware
 app.use(cors());
@@ -24,6 +34,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/video', videoRoutes);
 app.use('/api/youtube', youtubeRoutes);
 app.use('/api/googlesheets', googlesheetsRoutes);
+app.use('/api/scheduler', schedulerRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -53,11 +64,17 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📹 Video API: http://localhost:${PORT}/api/video`);
   console.log(`📺 YouTube API: http://localhost:${PORT}/api/youtube`);
+  console.log(`📊 Google Sheets API: http://localhost:${PORT}/api/googlesheets`);
+  console.log(`⏰ Scheduler API: http://localhost:${PORT}/api/scheduler`);
   console.log('\n⚙️  Environment check:');
   console.log(`   OpenAI API: ${process.env.OPENAI_API_KEY ? '✓' : '✗'}`);
   console.log(`   ElevenLabs API: ${process.env.ELEVENLABS_API_KEY ? '✓' : '✗'}`);
   console.log(`   PiAPI: ${process.env.PIAPI_KEY ? '✓' : '✗'}`);
   console.log(`   Google OAuth: ${(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) ? '✓' : '✗'}`);
+  console.log(`   Google Sheets: ${(process.env.GOOGLE_SHEETS_CLIENT_ID && process.env.GOOGLE_SHEETS_CLIENT_SECRET) ? '✓' : '✗'}`);
+  
+  const schedules = schedulerService.getAllJobs();
+  console.log(`\n📅 Active schedules: ${schedules.filter(j => j.status === 'active').length}`);
 });
 
 export default app;

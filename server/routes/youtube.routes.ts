@@ -74,4 +74,9 @@ router.post('/upload', async (req, res) => {
   }
 });
 
+// Export service for use in other routes
+export function getYouTubeService(): YouTubeService | null {
+  return youtubeService.isAuthenticated() ? youtubeService : null;
+}
+
 export default router;

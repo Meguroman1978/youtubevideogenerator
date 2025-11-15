@@ -228,4 +228,126 @@ async function generateVideo(
   }
 }
 
+// Batch process videos from Google Sheets
+export async function processSheetsKeywords(spreadsheetId: string): Promise<void> {
+  console.log(`📊 Processing keywords from sheet: ${spreadsheetId}`);
+  
+  // Import Google Sheets service
+  const { getSheetsService } = await import('./googlesheets.routes.js');
+  const sheetsService = getSheetsService();
+  
+  if (!sheetsService) {
+    throw new Error('Google Sheets service not available');
+  }
+
+  // Import YouTube service
+  const { getYouTubeService } = await import('./youtube.routes.js');
+  const youtubeService = getYouTubeService();
+
+  // Get API keys from environment
+  const openaiKey = process.env.OPENAI_API_KEY || '';
+  const piapiKey = process.env.PIAPI_KEY || '';
+  const elevenlabsKey = process.env.ELEVENLABS_API_KEY || '';
+
+  if (!openaiKey || !piapiKey || !elevenlabsKey) {
+    throw new Error('API keys not configured in environment variables');
+  }
+
+  try {
+    // Read pending keywords from sheet
+    const rows = await sheetsService.readPendingKeywords(spreadsheetId);
+    
+    console.log(`📝 Found ${rows.length} pending keyword(s)`);
+
+    // Process each keyword
+    for (const row of rows) {
+      try {
+        console.log(`🎬 Processing: ${row.keyword} (Row ${row.rowIndex})`);
+        
+        // Update status to Pending
+        await sheetsService.updateRowStatus(spreadsheetId, row.rowIndex, 'Pending');
+
+        // Create project
+        const projectId = uuidv4();
+        const project: VideoProject = {
+          id: projectId,
+          keyword: row.keyword,
+          referenceUrl: row.referenceUrl,
+          status: 'pending',
+          scenes: [],
+          progress: 0,
+          sheetRowIndex: row.rowIndex,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        projects.set(projectId, project);
+
+        // Generate video
+        await generateVideo(
+          projectId,
+          row.keyword,
+          openaiKey,
+          piapiKey,
+          elevenlabsKey,
+          {},
+          '9:16', // Default format
+          'ja', // Default language
+          5, // Default duration
+          row.referenceUrl
+        );
+
+        // Check if generation succeeded
+        const completedProject = projects.get(projectId);
+        if (completedProject && completedProject.status === 'completed' && completedProject.finalVideoUrl) {
+          // Upload to YouTube if service is available
+          if (youtubeService) {
+            try {
+              project.status = 'uploading';
+              projects.set(projectId, project);
+
+              const result = await youtubeService.uploadVideo(
+                completedProject.finalVideoUrl,
+                completedProject.keyword,
+                `この動画は「${completedProject.keyword}」について自動生成されました。\n\n${completedProject.script || ''}`,
+                'unlisted'
+              );
+
+              const youtubeUrl = `https://www.youtube.com/watch?v=${result.videoId}`;
+              completedProject.youtubeUrl = youtubeUrl;
+              completedProject.youtubeVideoId = result.videoId;
+              projects.set(projectId, completedProject);
+
+              // Update sheet with YouTube URL
+              await sheetsService.updateRowStatus(spreadsheetId, row.rowIndex, 'Finished', youtubeUrl);
+              
+              console.log(`✅ Successfully processed: ${row.keyword} → ${youtubeUrl}`);
+            } catch (uploadError: any) {
+              console.error(`Failed to upload to YouTube: ${uploadError.message}`);
+              await sheetsService.updateRowStatus(spreadsheetId, row.rowIndex, 'Error');
+            }
+          } else {
+            // No YouTube service, mark as finished without URL
+            await sheetsService.updateRowStatus(spreadsheetId, row.rowIndex, 'Finished');
+            console.log(`✅ Successfully generated: ${row.keyword} (YouTube upload skipped)`);
+          }
+        } else {
+          // Generation failed
+          await sheetsService.updateRowStatus(spreadsheetId, row.rowIndex, 'Error');
+          console.error(`❌ Failed to generate: ${row.keyword}`);
+        }
+
+      } catch (error: any) {
+        console.error(`Error processing ${row.keyword}:`, error);
+        await sheetsService.updateRowStatus(spreadsheetId, row.rowIndex, 'Error');
+      }
+    }
+
+    console.log(`🎉 Batch processing completed for sheet: ${spreadsheetId}`);
+  } catch (error: any) {
+    console.error(`Failed to process sheet ${spreadsheetId}:`, error);
+    throw error;
+  }
+}
+
 export default router;
