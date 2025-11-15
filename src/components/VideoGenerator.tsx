@@ -305,9 +305,6 @@ export function VideoGenerator() {
         </form>
       </div>
 
-      rm>
-      </div>
-
       {currentProject && (
         <div className="card">
           <h3 style={{ marginBottom: '1rem' }}>
