@@ -20,10 +20,26 @@ const videoService = new VideoService();
 
 router.post('/generate', async (req, res) => {
   try {
-    const { keyword }: VideoGenerationRequest = req.body;
+    const { keyword, apiKeys }: VideoGenerationRequest & { apiKeys?: any } = req.body;
 
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required' });
+    }
+
+    // Use provided API keys or fall back to environment variables
+    const openaiKey = apiKeys?.openai || process.env.OPENAI_API_KEY || '';
+    const piapiKey = apiKeys?.piapi || process.env.PIAPI_KEY || '';
+    const elevenlabsKey = apiKeys?.elevenlabs || process.env.ELEVENLABS_API_KEY || '';
+
+    if (!openaiKey || !piapiKey || !elevenlabsKey) {
+      return res.status(400).json({ 
+        error: 'API keys are required. Please configure them in settings.',
+        missing: {
+          openai: !openaiKey,
+          piapi: !piapiKey,
+          elevenlabs: !elevenlabsKey,
+        }
+      });
     }
 
     // Create project
@@ -40,8 +56,8 @@ router.post('/generate', async (req, res) => {
 
     projects.set(projectId, project);
 
-    // Start async generation
-    generateVideo(projectId, keyword).catch((error) => {
+    // Start async generation with provided API keys
+    generateVideo(projectId, keyword, openaiKey, piapiKey, elevenlabsKey).catch((error) => {
       console.error('Video generation error:', error);
       const proj = projects.get(projectId);
       if (proj) {
@@ -76,9 +92,14 @@ router.get('/projects', (_req, res) => {
   res.json(allProjects);
 });
 
-async function generateVideo(projectId: string, keyword: string): Promise<void> {
+async function generateVideo(projectId: string, keyword: string, openaiKey: string, piapiKey: string, elevenlabsKey: string): Promise<void> {
   const project = projects.get(projectId);
   if (!project) return;
+
+  // Create service instances with provided API keys
+  const openaiSvc = new OpenAIService(openaiKey);
+  const piapiSvc = new PiAPIService(piapiKey);
+  const elevenlabsSvc = new ElevenLabsService(elevenlabsKey);
 
   try {
     // Step 1: Generate captions
@@ -86,14 +107,14 @@ async function generateVideo(projectId: string, keyword: string): Promise<void> 
     project.progress = 10;
     projects.set(projectId, project);
 
-    const captions = await openaiService.generateVideoCaptions(keyword);
+    const captions = await openaiSvc.generateVideoCaptions(keyword);
 
     // Step 2: Generate image prompts and scenes
     project.status = 'generating_images';
     project.progress = 20;
     projects.set(projectId, project);
 
-    const scenes = await openaiService.generateImagePrompts(captions, keyword);
+    const scenes = await openaiSvc.generateImagePrompts(captions, keyword);
     project.scenes = scenes;
     projects.set(projectId, project);
 
@@ -120,7 +141,7 @@ async function generateVideo(projectId: string, keyword: string): Promise<void> 
       project.progress = 40 + ((i + 1) / scenes.length) * 30;
       projects.set(projectId, project);
 
-      const videoUrl = await piapiService.generateVideoFromImage(
+      const videoUrl = await piapiSvc.generateVideoFromImage(
         scene.imageUrl,
         scene.imagePrompt
       );
