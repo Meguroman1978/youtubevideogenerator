@@ -20,7 +20,7 @@ const videoService = new VideoService();
 
 router.post('/generate', async (req, res) => {
   try {
-    const { keyword, format, language, duration, apiKeys, apiEndpoints }: VideoGenerationRequest & { apiKeys?: any; apiEndpoints?: any } = req.body;
+    const { keyword, format, language, duration, referenceUrl, apiKeys, apiEndpoints }: VideoGenerationRequest & { apiKeys?: any; apiEndpoints?: any } = req.body;
 
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required' });
@@ -47,6 +47,7 @@ router.post('/generate', async (req, res) => {
     const project: VideoProject = {
       id: projectId,
       keyword,
+      referenceUrl,
       status: 'pending',
       scenes: [],
       progress: 0,
@@ -66,7 +67,8 @@ router.post('/generate', async (req, res) => {
       apiEndpoints || {},
       format || '9:16',
       language || 'ja',
-      duration || 5
+      duration || 5,
+      referenceUrl
     ).catch((error) => {
       console.error('Video generation error:', error);
       const proj = projects.get(projectId);
@@ -111,7 +113,8 @@ async function generateVideo(
   apiEndpoints: any,
   format: '9:16' | '16:9',
   language: 'ja' | 'en',
-  duration: number
+  duration: number,
+  referenceUrl?: string
 ): Promise<void> {
   const project = projects.get(projectId);
   if (!project) return;
@@ -121,13 +124,28 @@ async function generateVideo(
   const piapiSvc = new PiAPIService(piapiKey, apiEndpoints?.piapi);
   const elevenlabsSvc = new ElevenLabsService(elevenlabsKey, apiEndpoints?.elevenlabs);
 
+  // Import URL parser service dynamically
+  const { URLParserService } = await import('../services/urlparser.service.js');
+  const urlParser = new URLParserService();
+
   try {
+    // Extract reference content if URL provided
+    let referenceContent: string | undefined;
+    if (referenceUrl) {
+      try {
+        referenceContent = await urlParser.extractContent(referenceUrl);
+      } catch (error) {
+        console.error('Failed to extract reference content:', error);
+        // Continue without reference content
+      }
+    }
+
     // Step 1: Generate captions
     project.status = 'generating_captions';
     project.progress = 10;
     projects.set(projectId, project);
 
-    const captions = await openaiSvc.generateVideoCaptions(keyword, language);
+    const captions = await openaiSvc.generateVideoCaptions(keyword, language, referenceContent);
 
     // Step 2: Generate image prompts and scenes
     project.status = 'generating_images';
@@ -175,7 +193,7 @@ async function generateVideo(
     project.progress = 70;
     projects.set(projectId, project);
 
-    const script = await openaiSvc.generateScript(captions, keyword, language);
+    const script = await openaiSvc.generateScript(captions, keyword, language, referenceContent);
     project.script = script;
 
     const audioPath = path.join(process.cwd(), 'uploads', `${projectId}-audio.mp3`);

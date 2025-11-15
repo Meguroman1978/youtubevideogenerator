@@ -4,6 +4,7 @@ import type { VideoProject } from '../types';
 
 export function VideoGenerator() {
   const [keyword, setKeyword] = useState('');
+  const [referenceUrl, setReferenceUrl] = useState('');
   const [format, setFormat] = useState<'9:16' | '16:9'>('9:16');
   const [language, setLanguage] = useState<'ja' | 'en'>('ja');
   const [duration, setDuration] = useState<number>(5);
@@ -248,6 +249,9 @@ export function VideoGenerator() {
             )}
           </button>
         </form>
+      </div>
+
+      rm>
       </div>
 
       {currentProject && (

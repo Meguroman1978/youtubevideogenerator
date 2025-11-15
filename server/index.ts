@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import videoRoutes from './routes/video.routes.js';
 import youtubeRoutes from './routes/youtube.routes.js';
+import googlesheetsRoutes from './routes/googlesheets.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +23,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // API Routes
 app.use('/api/video', videoRoutes);
 app.use('/api/youtube', youtubeRoutes);
+app.use('/api/googlesheets', googlesheetsRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -33,6 +35,7 @@ app.get('/api/health', (_req, res) => {
       elevenlabs: !!process.env.ELEVENLABS_API_KEY,
       piapi: !!process.env.PIAPI_KEY,
       google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+      googleSheets: !!(process.env.GOOGLE_SHEETS_CLIENT_ID && process.env.GOOGLE_SHEETS_CLIENT_SECRET),
     }
   });
 });

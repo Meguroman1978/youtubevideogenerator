@@ -11,9 +11,13 @@ export class OpenAIService {
     });
   }
 
-  async generateVideoCaptions(keyword: string, language: 'ja' | 'en' = 'ja'): Promise<string[]> {
+  async generateVideoCaptions(keyword: string, language: 'ja' | 'en' = 'ja', referenceContent?: string): Promise<string[]> {
+    const referenceContext = referenceContent 
+      ? `\n\n参考情報（提供されたURLのコンテンツ）:\n${referenceContent}\n\nこの参考情報も考慮してストーリーを作成してください。` 
+      : '';
+
     const prompts = {
-      ja: `あなたは創造的なストーリーテラーAIです。「${keyword}」に関する教育的な解説動画のための、魅力的な5つのシーンキャプションを生成してください。
+      ja: `あなたは創造的なストーリーテラーAIです。「${keyword}」に関する教育的な解説動画のための、魅力的な5つのシーンキャプションを生成してください。${referenceContext}
 
 ガイドライン:
 - 各キャプションは5〜10語程度
@@ -24,7 +28,7 @@ export class OpenAIService {
 - すべての視聴者に適切な内容にする
 
 あなたの回答は、「\\n」で区切られた5つの項目のリストにしてください（例: "item1\\nitem2\\nitem3\\nitem4\\nitem5"）`,
-      en: `You are a creative storytelling AI. Generate 5 engaging video scene captions for an educational/explanatory video about "${keyword}".
+      en: `You are a creative storytelling AI. Generate 5 engaging video scene captions for an educational/explanatory video about "${keyword}".${referenceContent ? `\n\nReference Information (from provided URL):\n${referenceContent}\n\nPlease consider this reference information when creating the story.` : ''}
 
 Guidelines:
 - Each caption should be 5-10 words
@@ -111,11 +115,15 @@ Return only the image prompt, nothing else.`
     return scenes;
   }
 
-  async generateScript(captions: string[], keyword: string, language: 'ja' | 'en' = 'ja'): Promise<string> {
+  async generateScript(captions: string[], keyword: string, language: 'ja' | 'en' = 'ja', referenceContent?: string): Promise<string> {
+    const referenceContext = referenceContent 
+      ? `\n\n参考情報:\n${referenceContent}\n\nこの参考情報も考慮してスクリプトを作成してください。` 
+      : '';
+
     const prompts = {
       ja: `「${keyword}」に関する動画のための、魅力的なナレーションスクリプトを作成してください。以下のシーンキャプションに基づいています:
 
-${captions.map((caption, i) => `${i + 1}. ${caption}`).join('\\n')}
+${captions.map((caption, i) => `${i + 1}. ${caption}`).join('\\n')}${referenceContext}
 
 要件:
 - プロフェッショナルで教育的なトーン
@@ -127,7 +135,7 @@ ${captions.map((caption, i) => `${i + 1}. ${caption}`).join('\\n')}
 スクリプトテキストのみを提供してください。追加のフォーマットは不要です。`,
       en: `Create an engaging narration script for a video about "${keyword}" based on these scene captions:
 
-${captions.map((caption, i) => `${i + 1}. ${caption}`).join('\\n')}
+${captions.map((caption, i) => `${i + 1}. ${caption}`).join('\\n')}${referenceContent ? `\n\nReference Information:\n${referenceContent}\n\nPlease consider this reference when creating the script.` : ''}
 
 Requirements:
 - Professional, educational tone
