@@ -120,25 +120,54 @@ function StepItem({ title, status, output, outputLabel, isFile, details }: StepI
 }
 
 function getStepStatus(project: VideoProject, stepName: string): 'pending' | 'processing' | 'completed' | 'failed' {
+  // Map UI steps to backend status
+  const stepMapping: Record<string, string[]> = {
+    'script_generation': ['generating_captions'],
+    'narration_generation': ['generating_audio'],
+    'image_generation': ['generating_images'],
+    'video_generation': ['generating_videos'],
+    'final_composition': ['composing']
+  };
+
+  // Define step order for comparison
+  const stepOrder = ['script_generation', 'image_generation', 'video_generation', 'narration_generation', 'final_composition'];
+  
   if (project.status === 'failed') {
-    if (project.errorStep === stepName) return 'failed';
-    // Check if this step was completed before failure
-    const stepOrder = ['generating_captions', 'generating_images', 'generating_videos', 'generating_audio', 'composing'];
-    const currentIndex = stepOrder.indexOf(project.errorStep || '');
-    const thisIndex = stepOrder.indexOf(stepName);
-    if (thisIndex < currentIndex) return 'completed';
+    // Check if this specific step failed
+    const failedBackendSteps = stepMapping[stepName] || [];
+    if (failedBackendSteps.includes(project.errorStep || '')) return 'failed';
+    
+    // Check if this step completed before failure
+    const backendStepOrder = ['generating_captions', 'generating_images', 'generating_videos', 'generating_audio', 'composing'];
+    const failedIndex = backendStepOrder.indexOf(project.errorStep || '');
+    const thisBackendSteps = stepMapping[stepName] || [];
+    const maxThisIndex = Math.max(...thisBackendSteps.map(s => backendStepOrder.indexOf(s)));
+    
+    if (maxThisIndex < failedIndex && maxThisIndex >= 0) return 'completed';
     return 'pending';
   }
 
   if (project.status === 'completed') return 'completed';
-  if (project.status === stepName) return 'processing';
 
-  const stepOrder = ['generating_captions', 'generating_images', 'generating_videos', 'generating_audio', 'composing'];
-  const currentIndex = stepOrder.indexOf(project.status);
-  const thisIndex = stepOrder.indexOf(stepName);
+  // Check if currently processing this step
+  const currentBackendSteps = stepMapping[stepName] || [];
+  if (currentBackendSteps.includes(project.status)) return 'processing';
 
-  if (thisIndex < currentIndex) return 'completed';
-  if (thisIndex === currentIndex) return 'processing';
+  // Check completion based on project data
+  if (stepName === 'script_generation' && project.script) return 'completed';
+  if (stepName === 'narration_generation' && project.audioUrl) return 'completed';
+  if (stepName === 'image_generation' && project.scenes.some(s => s.imageUrl)) return 'completed';
+  if (stepName === 'video_generation' && project.scenes.some(s => s.videoUrl)) return 'completed';
+  if (stepName === 'final_composition' && project.finalVideoUrl) return 'completed';
+
+  // Check step order
+  const backendStepOrder = ['generating_captions', 'generating_images', 'generating_videos', 'generating_audio', 'composing'];
+  const currentIndex = backendStepOrder.indexOf(project.status);
+  const thisBackendSteps = stepMapping[stepName] || [];
+  const minThisIndex = Math.min(...thisBackendSteps.map(s => backendStepOrder.indexOf(s)).filter(i => i >= 0));
+
+  if (minThisIndex < currentIndex) return 'completed';
+  if (minThisIndex === currentIndex) return 'processing';
   return 'pending';
 }
 
@@ -507,24 +536,15 @@ export function VideoGenerator() {
               {/* Step 1: Script Generation */}
               <StepItem
                 title="1. スクリプト生成"
-                status={getStepStatus(currentProject, 'generating_captions')}
+                status={getStepStatus(currentProject, 'script_generation')}
                 output={currentProject.script}
                 outputLabel="生成されたスクリプト"
               />
 
-              {/* Step 2: Narration Generation */}
+              {/* Step 2: Image Generation */}
               <StepItem
-                title="2. ナレーション生成"
-                status={getStepStatus(currentProject, 'generating_audio')}
-                output={currentProject.audioUrl}
-                outputLabel="音声ファイル"
-                isFile={true}
-              />
-
-              {/* Step 3: Image Generation */}
-              <StepItem
-                title="3. 画像生成"
-                status={getStepStatus(currentProject, 'generating_images')}
+                title="2. 画像生成"
+                status={getStepStatus(currentProject, 'image_generation')}
                 output={currentProject.scenes.length > 0 ? `${currentProject.scenes.filter(s => s.imageUrl).length}/${currentProject.scenes.length} 枚完了` : undefined}
                 outputLabel="生成された画像"
                 details={currentProject.scenes.length > 0 ? (
@@ -541,18 +561,27 @@ export function VideoGenerator() {
                 ) : undefined}
               />
 
-              {/* Step 4: Video Generation */}
+              {/* Step 3: Video Generation */}
               <StepItem
-                title="4. 動画生成（画像アニメーション）"
-                status={getStepStatus(currentProject, 'generating_videos')}
+                title="3. 動画生成（画像アニメーション）"
+                status={getStepStatus(currentProject, 'video_generation')}
                 output={currentProject.scenes.length > 0 ? `${currentProject.scenes.filter(s => s.videoUrl).length}/${currentProject.scenes.length} 本完了` : undefined}
                 outputLabel="生成された動画クリップ"
+              />
+
+              {/* Step 4: Narration Generation */}
+              <StepItem
+                title="4. ナレーション生成"
+                status={getStepStatus(currentProject, 'narration_generation')}
+                output={currentProject.audioUrl}
+                outputLabel="音声ファイル"
+                isFile={true}
               />
 
               {/* Step 5: Final Composition */}
               <StepItem
                 title="5. 動画統合（ナレーション＋画像統合）"
-                status={getStepStatus(currentProject, 'composing')}
+                status={getStepStatus(currentProject, 'final_composition')}
                 output={currentProject.finalVideoUrl}
                 outputLabel="最終動画ファイル"
                 isFile={true}

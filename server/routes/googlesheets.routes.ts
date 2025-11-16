@@ -13,13 +13,14 @@ let sheetsService: GoogleSheetsService | null = null;
 function initializeService() {
   const clientId = process.env.GOOGLE_SHEETS_CLIENT_ID || '';
   const clientSecret = process.env.GOOGLE_SHEETS_CLIENT_SECRET || '';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/googlesheets/auth/callback';
   
   if (!clientId || !clientSecret) {
     console.warn('Google Sheets credentials not configured');
     return null;
   }
   
-  const service = new GoogleSheetsService(clientId, clientSecret);
+  const service = new GoogleSheetsService(clientId, clientSecret, redirectUri);
   
   // Load saved tokens if they exist
   if (fs.existsSync(TOKENS_PATH)) {
@@ -35,6 +36,12 @@ function initializeService() {
 }
 
 sheetsService = initializeService();
+
+// Get redirect URI configuration
+router.get('/auth/redirect-uri', (_req, res) => {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/googlesheets/auth/callback';
+  res.json({ redirectUri });
+});
 
 // Get authentication URL
 router.get('/auth/url', (_req, res) => {
@@ -122,6 +129,35 @@ router.post('/update-status', async (req, res) => {
   } catch (error: any) {
     console.error('Failed to update status:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Test sheet connection
+router.post('/test', async (req, res) => {
+  try {
+    if (!sheetsService) {
+      return res.status(400).json({ error: 'Google Sheets not authenticated' });
+    }
+    
+    const { spreadsheetId } = req.body;
+    
+    if (!spreadsheetId) {
+      return res.status(400).json({ error: 'Spreadsheet ID is required' });
+    }
+
+    // Try to read the sheet metadata and first few rows
+    const metadata = await sheetsService.getSpreadsheetMetadata(spreadsheetId);
+    const testRead = await sheetsService.readPendingKeywords(spreadsheetId);
+    
+    res.json({ 
+      success: true,
+      sheetTitle: metadata.title,
+      rowCount: testRead.length,
+      message: 'Successfully connected to the sheet'
+    });
+  } catch (error: any) {
+    console.error('Failed to test sheet connection:', error);
+    res.status(500).json({ error: error.message || 'Failed to connect to the sheet' });
   }
 });
 

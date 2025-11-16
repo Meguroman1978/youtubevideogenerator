@@ -13,7 +13,7 @@ export class GoogleSheetsService {
   private sheets;
   private auth: OAuth2Client;
 
-  constructor(clientId: string, clientSecret: string, redirectUri: string = 'http://localhost:3000/api/google/callback') {
+  constructor(clientId: string, clientSecret: string, redirectUri: string) {
     this.auth = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
   }
@@ -121,6 +121,23 @@ export class GoogleSheetsService {
     } catch (error: any) {
       console.error('Failed to append log:', error);
       // Don't throw - logging failure shouldn't break the process
+    }
+  }
+
+  async getSpreadsheetMetadata(spreadsheetId: string): Promise<{ title: string; sheetCount: number }> {
+    try {
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId,
+        fields: 'properties.title,sheets.properties.title',
+      });
+
+      return {
+        title: response.data.properties?.title || 'Unknown',
+        sheetCount: response.data.sheets?.length || 0,
+      };
+    } catch (error: any) {
+      console.error('Failed to get spreadsheet metadata:', error);
+      throw new Error(`Failed to access Google Sheet: ${error.message}`);
     }
   }
 }
