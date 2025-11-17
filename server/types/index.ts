@@ -1,3 +1,9 @@
+export interface SubtitleSegment {
+  text: string;
+  startTime: number; // seconds
+  endTime: number;   // seconds
+}
+
 export interface VideoScene {
   title: string;
   imagePrompt: string;

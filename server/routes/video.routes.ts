@@ -291,11 +291,25 @@ async function generateVideo(
       throw new Error('音声ファイルが生成されていません');
     }
     
+    // Generate subtitle segments from scene titles and durations
+    const subtitles: import('../types/index.js').SubtitleSegment[] = [];
+    let currentTime = 0;
+    for (const scene of scenes) {
+      const sceneDuration = scene.duration || 5; // Default to 5 seconds if not specified
+      subtitles.push({
+        text: scene.title,
+        startTime: currentTime,
+        endTime: currentTime + sceneDuration,
+      });
+      currentTime += sceneDuration;
+    }
+    console.log(`📝 Generated ${subtitles.length} subtitle segments from scene titles`);
+    
     const finalVideoPath = path.join(process.cwd(), 'uploads', `${projectId}-final.mp4`);
 
     try {
-      await videoService.mergeVideosWithAudio(videoUrls, project.audioUrl, finalVideoPath);
-      console.log(`✅ Final video composed successfully`);
+      await videoService.mergeVideosWithAudio(videoUrls, project.audioUrl, finalVideoPath, subtitles);
+      console.log(`✅ Final video composed successfully with subtitles`);
       project.finalVideoUrl = finalVideoPath;
     } catch (error: any) {
       const errorMsg = `動画合成エラー: ${error.message}`;
