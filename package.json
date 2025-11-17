@@ -7,9 +7,10 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server && npm run copy:assets",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
+    "copy:assets": "mkdir -p dist/server/assets/title_images && cp -r server/assets/title_images/* dist/server/assets/title_images/",
     "start": "node dist/server/index.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
