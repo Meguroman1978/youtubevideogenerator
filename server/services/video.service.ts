@@ -12,10 +12,14 @@ interface SubtitleSegment {
 
 export class VideoService {
   private readonly fontPath: string;
+  private readonly titleImagesPath: string;
 
   constructor() {
     // Path to the handwriting font
     this.fontPath = path.join(process.cwd(), 'public', 'fonts', 'handwriting.ttf');
+    
+    // Path to title background images
+    this.titleImagesPath = path.join(process.cwd(), 'server', 'assets', 'title_images');
     
     // Ensure font exists
     if (!fs.existsSync(this.fontPath)) {
@@ -23,6 +27,27 @@ export class VideoService {
     } else {
       console.log(`✅ Font loaded: ${this.fontPath}`);
     }
+    
+    // Ensure title images directory exists
+    if (!fs.existsSync(this.titleImagesPath)) {
+      console.warn(`⚠️ Warning: Title images directory not found at ${this.titleImagesPath}`);
+    } else {
+      console.log(`✅ Title images directory: ${this.titleImagesPath}`);
+    }
+  }
+  
+  /**
+   * Get the appropriate title background image based on video format
+   */
+  getTitleImagePath(format: '9:16' | '16:9'): string {
+    const fileName = format === '9:16' ? 'shorts_title.jpg' : 'landscape_title.jpg';
+    const imagePath = path.join(this.titleImagesPath, fileName);
+    
+    if (!fs.existsSync(imagePath)) {
+      throw new Error(`CRITICAL ERROR: Title background is required but not found. Video format: ${format === '9:16' ? 'shorts' : 'landscape'}, Directory: ${this.titleImagesPath}`);
+    }
+    
+    return imagePath;
   }
   async downloadFile(url: string, outputPath: string): Promise<string> {
     const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -36,11 +61,53 @@ export class VideoService {
     return outputPath;
   }
 
+  /**
+   * Create a title screen video from an image
+   */
+  async createTitleScreen(
+    titleImagePath: string,
+    duration: number,
+    outputPath: string,
+    format: '9:16' | '16:9'
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const dimensions = format === '9:16' ? '540:960' : '960:540';
+      
+      console.log(`🎬 Creating title screen: ${duration}s, ${format} format`);
+      
+      ffmpeg()
+        .input(titleImagePath)
+        .loop(duration)
+        .inputOptions(['-t', duration.toString()])
+        .videoFilters(`scale=${dimensions}:force_original_aspect_ratio=decrease,pad=${dimensions}:(ow-iw)/2:(oh-ih)/2`)
+        .outputOptions([
+          '-r 30',
+          '-pix_fmt yuv420p',
+          '-c:v libx264',
+          '-preset fast',
+          '-crf 23'
+        ])
+        .output(outputPath)
+        .on('end', () => {
+          console.log('✅ Title screen created');
+          resolve();
+        })
+        .on('error', (err) => {
+          console.error('❌ Title screen creation error:', err.message);
+          reject(err);
+        })
+        .run();
+    });
+  }
+
   async mergeVideosWithAudio(
     videoUrls: string[],
     audioPath: string,
     outputPath: string,
-    subtitles?: SubtitleSegment[]
+    subtitles?: SubtitleSegment[],
+    format?: '9:16' | '16:9',
+    addTitleScreen?: boolean,
+    titleDuration?: number
   ): Promise<string> {
     const tempDir = path.join(process.cwd(), 'uploads', 'temp', uuidv4());
     if (!fs.existsSync(tempDir)) {
@@ -48,12 +115,31 @@ export class VideoService {
     }
 
     try {
+      // Create title screen if requested
+      if (addTitleScreen && format) {
+        const titleImagePath = this.getTitleImagePath(format);
+        const titleVideoPath = path.join(tempDir, 'title_screen.mp4');
+        const titleScreenDuration = titleDuration || 3; // Default 3 seconds
+        
+        await this.createTitleScreen(titleImagePath, titleScreenDuration, titleVideoPath, format);
+        
+        // Add title screen to the beginning of video list
+        videoUrls.unshift(titleVideoPath);
+      }
+
       // Download all videos
       const videoFiles: string[] = [];
       for (let i = 0; i < videoUrls.length; i++) {
-        const videoPath = path.join(tempDir, `video_${i}.mp4`);
-        await this.downloadFile(videoUrls[i], videoPath);
-        videoFiles.push(videoPath);
+        const isLocalFile = videoUrls[i].startsWith('/') || videoUrls[i].includes(tempDir);
+        if (isLocalFile) {
+          // Local file (like title screen), use directly
+          videoFiles.push(videoUrls[i]);
+        } else {
+          // Remote URL, download it
+          const videoPath = path.join(tempDir, `video_${i}.mp4`);
+          await this.downloadFile(videoUrls[i], videoPath);
+          videoFiles.push(videoPath);
+        }
       }
 
       // Create concat file list

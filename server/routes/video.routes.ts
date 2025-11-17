@@ -293,7 +293,9 @@ async function generateVideo(
     
     // Generate subtitle segments from scene titles and durations
     const subtitles: import('../types/index.js').SubtitleSegment[] = [];
-    let currentTime = 0;
+    const titleScreenDuration = 3; // 3 seconds title screen
+    let currentTime = titleScreenDuration; // Start after title screen
+    
     for (const scene of scenes) {
       const sceneDuration = scene.duration || 5; // Default to 5 seconds if not specified
       subtitles.push({
@@ -304,12 +306,21 @@ async function generateVideo(
       currentTime += sceneDuration;
     }
     console.log(`📝 Generated ${subtitles.length} subtitle segments from scene titles`);
+    console.log(`🎬 Adding ${titleScreenDuration}s title screen with format: ${format}`);
     
     const finalVideoPath = path.join(process.cwd(), 'uploads', `${projectId}-final.mp4`);
 
     try {
-      await videoService.mergeVideosWithAudio(videoUrls, project.audioUrl, finalVideoPath, subtitles);
-      console.log(`✅ Final video composed successfully with subtitles`);
+      await videoService.mergeVideosWithAudio(
+        videoUrls,
+        project.audioUrl,
+        finalVideoPath,
+        subtitles,
+        format,
+        true, // Add title screen
+        titleScreenDuration
+      );
+      console.log(`✅ Final video composed successfully with title screen and subtitles`);
       project.finalVideoUrl = finalVideoPath;
     } catch (error: any) {
       const errorMsg = `動画合成エラー: ${error.message}`;
