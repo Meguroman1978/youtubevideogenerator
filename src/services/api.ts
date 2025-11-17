@@ -27,52 +27,115 @@ export const api = {
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to generate video');
+      let errorMessage = 'Failed to generate video';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Response is not JSON, try to get text
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error(`サーバーが無効なレスポンスを返しました。Vite開発サーバー（ポート5173）にアクセスしていることを確認してください。`);
+    }
   },
 
   async getProjectStatus(projectId: string): Promise<VideoProject> {
     const response = await fetch(`${API_BASE}/video/status/${projectId}`);
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to fetch project status');
+      let errorMessage = 'Failed to fetch project status';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Response is not JSON, try to get text
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error(`サーバーが無効なレスポンスを返しました。Vite開発サーバー（ポート5173）にアクセスしていることを確認してください。`);
+    }
   },
 
   async getAllProjects(): Promise<VideoProject[]> {
     const response = await fetch(`${API_BASE}/video/projects`);
     
     if (!response.ok) {
-      throw new Error('Failed to fetch projects');
+      let errorMessage = 'Failed to fetch projects';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Response is not JSON, try to get text
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error(`サーバーが無効なレスポンスを返しました。Vite開発サーバー（ポート5173）にアクセスしていることを確認してください。`);
+    }
   },
 
   async getYouTubeAuthUrl(): Promise<{ authUrl: string }> {
     const response = await fetch(`${API_BASE}/youtube/auth/url`);
     
     if (!response.ok) {
-      throw new Error('Failed to get auth URL');
+      let errorMessage = 'Failed to get auth URL';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Response is not JSON, try to get text
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error(`サーバーが無効なレスポンスを返しました。Vite開発サーバー（ポート5173）にアクセスしていることを確認してください。`);
+    }
   },
 
   async getYouTubeAuthStatus(): Promise<YouTubeAuthStatus> {
     const response = await fetch(`${API_BASE}/youtube/auth/status`);
     
     if (!response.ok) {
-      throw new Error('Failed to check auth status');
+      let errorMessage = 'Failed to check auth status';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Response is not JSON, try to get text
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error(`サーバーが無効なレスポンスを返しました。Vite開発サーバー（ポート5173）にアクセスしていることを確認してください。`);
+    }
   },
 
   async uploadToYouTube(videoPath: string, title: string, description: string): Promise<{ success: boolean; videoId: string; url: string }> {
@@ -88,10 +151,22 @@ export const api = {
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload to YouTube');
+      let errorMessage = 'Failed to upload to YouTube';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Response is not JSON, try to get text
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error(`サーバーが無効なレスポンスを返しました。Vite開発サーバー（ポート5173）にアクセスしていることを確認してください。`);
+    }
   },
 };
