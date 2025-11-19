@@ -13,6 +13,12 @@ const youtubeService = new YouTubeService(
 // Load saved tokens on startup
 youtubeService.loadSavedTokens();
 
+// Get redirect URI configuration
+router.get('/auth/redirect-uri', (_req, res) => {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/youtube/auth/callback';
+  res.json({ redirectUri });
+});
+
 router.get('/auth/url', (_req, res) => {
   try {
     const authUrl = youtubeService.getAuthUrl();
@@ -73,5 +79,10 @@ router.post('/upload', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Export service for use in other routes
+export function getYouTubeService(): YouTubeService | null {
+  return youtubeService.isAuthenticated() ? youtubeService : null;
+}
 
 export default router;
